@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { track } from "@/lib/analytics";
 import {
   dismissAuthMessage,
   initAuth,
@@ -116,6 +117,7 @@ export default function App() {
     else setView("records");
   }, []);
   const openDate = useCallback((ymd: string) => {
+    track("History Detail Viewed");
     const fromHistory = (window.history.state as { ilgalpi?: string } | null)?.ilgalpi === "history";
     setSelected(ymd);
     setView("home");

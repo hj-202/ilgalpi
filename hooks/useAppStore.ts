@@ -1,5 +1,6 @@
 "use client";
 
+import { fieldTypesOf, identifyUser, resetIdentity, track } from "@/lib/analytics";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useSyncExternalStore } from "react";
 import { applyPending, diffState, type Op } from "@/lib/account/rows";
@@ -202,6 +203,8 @@ function toAccountInfo(u: { id: string; email?: string; user_metadata?: Record<s
 
 let authStarted = false;
 let signingOut = false;
+// OAuth 콜백(`?auth=ok`)으로 막 돌아온 경우에만 true: 세션 복원과 로그인 성공을 구분한다
+let freshLogin = false;
 
 /** 앱 시작 시 한 번: 세션 복원 + 인증 이벤트 구독 + OAuth 결과 안내 */
 export function initAuth() {
@@ -213,6 +216,7 @@ export function initAuth() {
     params.delete("auth");
     const qs = params.toString();
     window.history.replaceState(null, "", window.location.pathname + (qs ? `?${qs}` : ""));
+    if (result === "ok") freshLogin = true;
     if (result === "cancelled" || result === "error") commit({ authMessage: result });
   }
   const sb = getBrowserSupabase();
@@ -231,9 +235,15 @@ export function initAuth() {
         importOffer: null,
       });
       saveFlag("started");
+      identifyUser(user.id);
+      if (freshLogin) {
+        freshLogin = false;
+        track("Entry Completed", { entry_method: "google" });
+      }
       void loadAccount(sb, user, true);
     } else {
       const wasAccount = cur.auth.status === "account";
+      if (wasAccount) resetIdentity();
       pending.clear();
       commit({
         auth: { status: "guest", configured: true, user: null },
@@ -298,6 +308,7 @@ export async function signOut() {
   // onAuthStateChange가 정리한다. 이벤트가 오지 않는 경우를 대비해 직접 정리
   const cur = ensureLoaded();
   if (cur.auth.status === "account") {
+    resetIdentity();
     pending.clear();
     commit({ auth: { status: "guest", configured: true, user: null }, accountApp: null, importOffer: null, sync: { state: "idle", pending: 0 } });
     signingOut = false;
@@ -458,6 +469,7 @@ export function addTask(input: NewTaskInput) {
     updatedAt: ts,
   };
   update((app) => ({ ...app, tasks: [...app.tasks, task] }));
+  track("Task Created");
 }
 
 export type TaskPatch = Partial<
@@ -466,6 +478,8 @@ export type TaskPatch = Partial<
 
 /** 조건 일부만 수정한다. dueDate를 지우면 dueTime도 함께 지운다. */
 export function patchTask(id: string, patch: TaskPatch) {
+  const before = ensureLoaded().app.tasks.find((t) => t.id === id);
+  const changed = before ? Object.keys(patch).filter((k) => patch[k as keyof TaskPatch] !== before[k as keyof TaskPatch]) : [];
   update((app) => ({
     ...app,
     tasks: app.tasks.map((t) => {
@@ -476,13 +490,17 @@ export function patchTask(id: string, patch: TaskPatch) {
       return next;
     }),
   }));
+  for (const field_type of fieldTypesOf(changed)) track("Task Updated", { field_type });
 }
 
 export function deleteTask(id: string) {
+  const existed = ensureLoaded().app.tasks.some((t) => t.id === id);
   update((app) => ({ ...app, tasks: app.tasks.filter((t) => t.id !== id) }));
+  if (existed) track("Task Deleted");
 }
 
-export function setTaskCompleted(id: string, completed: boolean) {
+export function setTaskCompleted(id: string, completed: boolean, source: "home" | "recommendation" = "home") {
+  const before = ensureLoaded().app.tasks.find((t) => t.id === id);
   const ts = now();
   update((app) => ({
     ...app,
@@ -492,6 +510,7 @@ export function setTaskCompleted(id: string, completed: boolean) {
         : t,
     ),
   }));
+  if (before && before.isCompleted !== completed) track(completed ? "Task Completed" : "Task Reopened", { source });
 }
 
 /**
@@ -500,6 +519,7 @@ export function setTaskCompleted(id: string, completed: boolean) {
  */
 export function carryOverTasks(ids: string[], targetDate: string) {
   const set = new Set(ids);
+  const movedCount = ensureLoaded().app.tasks.filter((t) => set.has(t.id) && !t.isCompleted).length;
   const ts = now();
   update((app) => ({
     ...app,
@@ -507,6 +527,7 @@ export function carryOverTasks(ids: string[], targetDate: string) {
       set.has(t.id) && !t.isCompleted ? { ...t, plannedDate: targetDate, updatedAt: ts } : t,
     ),
   }));
+  if (movedCount > 0) track("Task Moved", { selected_count: movedCount });
 }
 
 // ---------- 설정·추천 ----------
@@ -524,13 +545,15 @@ export function setRecommendation(date: string, recommendation: StoredRecommenda
   update((app) => ({ ...app, recommendations: { ...app.recommendations, [date]: recommendation } }));
 }
 
-export function finishOnboarding() {
+export function finishOnboarding(method: "completed" | "skipped") {
+  track("Onboarding Finished", { method });
   saveOnboarded();
   commit({ onboarded: true });
 }
 
 /** 시작 화면에서 '로그인 없이 시작하기' */
 export function startAsGuest() {
+  track("Entry Completed", { entry_method: "guest" });
   saveOnboarded();
   saveFlag("started");
   commit({ onboarded: true, started: true });

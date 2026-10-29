@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { track } from "@/lib/analytics";
 import { FEEDBACK_MAX } from "@/lib/constants";
 import { GhostButton, Modal, PrimaryButton, showToast } from "./ui";
 
@@ -25,6 +26,7 @@ export default function FeedbackModal({ onClose }: { onClose: () => void }) {
       });
       const data = (await res.json().catch(() => null)) as { ok?: boolean; code?: string } | null;
       if (res.ok && data?.ok === true) {
+        track("Feedback Submitted");
         showToast("의견이 전달되었어요.");
         setText("");
         onClose();

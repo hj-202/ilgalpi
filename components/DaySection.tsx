@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { carryOverTasks } from "@/hooks/useAppStore";
+import { track } from "@/lib/analytics";
 import { addDays, formatMonthDay } from "@/lib/date";
 import type { Project, Task } from "@/lib/types";
 import QuickAdd from "./QuickAdd";
@@ -112,6 +113,7 @@ export default function DaySection({
             <button
               type="button"
               onClick={() => {
+                if (!carrying) track("Task Move Started");
                 setCarrying(!carrying);
                 setPicked(new Set());
               }}

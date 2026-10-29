@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { track } from "@/lib/analytics";
 import { buildPeriod, defaultBarIndex, type RecordMode } from "@/lib/stats";
 import type { Task } from "@/lib/types";
 import { ChevronIcon, EmptyState } from "./ui";
@@ -62,7 +63,10 @@ export default function RecordChart({
               key={key}
               type="button"
               aria-pressed={mode === key}
-              onClick={() => change(key, 0)}
+              onClick={() => {
+                if (key !== mode) track("History Period Changed", { period_type: key === "week" ? "weekly" : "monthly" });
+                change(key, 0);
+              }}
               className={`min-h-8 rounded-[9px] px-3 text-[13px] ${mode === key ? "bg-white font-bold text-ink shadow-[0_1px_5px_rgba(0,0,0,0.05)]" : "text-[#7b7c82]"}`}
             >
               {label}

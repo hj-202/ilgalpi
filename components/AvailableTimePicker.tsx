@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { track } from "@/lib/analytics";
 import { AVAIL_MAX, AVAIL_MIN, AVAIL_PRESETS } from "@/lib/constants";
 import { formatAvailable, formatMinutes } from "@/lib/format";
 import { OptionChip } from "./ui";
@@ -40,6 +41,7 @@ export default function AvailableTimePicker({
       setError(`${AVAIL_MIN}분 이상 24시간 이하로 입력해 주세요`);
       return;
     }
+    if (total !== value) track("Available Time Updated", { selection_type: "custom" });
     onChange(total);
     setEditing(false);
     setError(null);
@@ -57,6 +59,7 @@ export default function AvailableTimePicker({
             key={m}
             selected={value === m && !editing}
             onClick={() => {
+              if (m !== value) track("Available Time Updated", { selection_type: "preset" });
               onChange(m);
               setEditing(false);
               setError(null);

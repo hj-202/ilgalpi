@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { setDailyAvailableMinutes, setRecommendation } from "@/hooks/useAppStore";
+import { track, trackPage } from "@/lib/analytics";
 import { availableFor } from "@/lib/availability";
 import { MAX_AI_TASKS } from "@/lib/constants";
 import { nowTimeLocal } from "@/lib/date";
@@ -52,6 +53,11 @@ export default function HomeView({
   const tooMany = incomplete.length > MAX_AI_TASKS;
   const showingRec = viewRec && (rec !== null || loading);
 
+  // 홈 목록 ↔ 추천 결과 화면 진입. 같은 화면의 재렌더링으로는 중복 기록되지 않는다
+  useEffect(() => {
+    trackPage(showingRec ? "recommendation" : "home");
+  }, [showingRec]);
+
   const storeBasic = (reason: string) => {
     const result = basicRecommend({
       tasks: incomplete,
@@ -61,12 +67,14 @@ export default function HomeView({
       nowTime,
     });
     setRecommendation(selected, createStoredRecommendation(result, "basic", { tasks: incomplete, availableMinutes, date: today }));
+    track("Recommendation Viewed", { recommendation_type: "basic", result_source: "new" });
     setNotice({ kind: "fallback", message: `${reason} 조건 기반 추천으로 순서를 정리했어요.`, canRetry: true });
     setViewRec(true);
   };
 
   const runAI = async () => {
     if (incomplete.length < 2 || tooMany || loading) return;
+    track("Recommendation Requested", { task_count: incomplete.length, is_retry: rec !== null });
     const planDate = selected;
     const request = buildRecommendRequest({ tasks: dayTasks, projects: app.projects, availableMinutes, today, planDate, nowTime });
     setLoading(true);
@@ -94,6 +102,7 @@ export default function HomeView({
             data.meta.model,
           ),
         );
+        track("Recommendation Viewed", { recommendation_type: "ai", result_source: "new" });
         setViewRec(true);
       }
     } catch (err) {
@@ -142,7 +151,10 @@ export default function HomeView({
           today={today}
           nowTime={nowTime}
           hasRecommendation={rec !== null}
-          onShowRecommendation={() => setViewRec(true)}
+          onShowRecommendation={() => {
+            if (rec) track("Recommendation Viewed", { recommendation_type: rec.recommendationType, result_source: "saved" });
+            setViewRec(true);
+          }}
         />
       )}
 

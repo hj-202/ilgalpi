@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { hasUnsavedChanges, reopenImport, retrySync, signInWithGoogle, signOut, type StoreSnapshot } from "@/hooks/useAppStore";
+import { track, trackPage } from "@/lib/analytics";
 import { formatMonthDay, weekdayIndex } from "@/lib/date";
 import { buildPeriod, pastRecords, type RecordMode } from "@/lib/stats";
 import { supabaseConfigured } from "@/lib/supabase/client";
@@ -65,6 +66,9 @@ export default function MyPage({
   const { app, today, auth, sync } = store;
   const [period, setPeriod] = useState<{ mode: RecordMode; offset: number }>({ mode: "week", offset: 0 });
   const [feedback, setFeedback] = useState(false);
+  useEffect(() => {
+    trackPage("records");
+  }, []);
   const [busy, setBusy] = useState(false);
   const tasks = app.tasks;
   const recorded = tasks.some((t) => t.isCompleted);
@@ -195,7 +199,10 @@ export default function MyPage({
       </section>
 
       <div className="mt-6 flex justify-end border-t border-[#eee] pt-2.5">
-        <button type="button" onClick={() => setFeedback(true)} className="inline-flex min-h-[40px] items-center gap-0.5 px-1.5 text-[13px] text-[#6f7074]">
+        <button type="button" onClick={() => {
+            track("Feedback Opened");
+            setFeedback(true);
+          }} className="inline-flex min-h-[40px] items-center gap-0.5 px-1.5 text-[13px] text-[#6f7074]">
           의견 보내기
           <ChevronIcon dir="right" size={16} />
         </button>

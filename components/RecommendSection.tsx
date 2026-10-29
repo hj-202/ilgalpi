@@ -150,7 +150,7 @@ export function RecommendResult({
                     </p>
                   </div>
                   <div className="pt-0.5">
-                    <CompleteCheck task={t} />
+                    <CompleteCheck task={t} source="recommendation" />
                   </div>
                 </li>
               );

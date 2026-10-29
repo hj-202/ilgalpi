@@ -25,14 +25,14 @@ export function CheckCircle({ checked }: { checked: boolean }) {
   );
 }
 
-export function CompleteCheck({ task }: { task: Task }) {
+export function CompleteCheck({ task, source = "home" }: { task: Task; source?: "home" | "recommendation" }) {
   return (
     <button
       type="button"
       role="checkbox"
       aria-checked={task.isCompleted}
       aria-label={`‘${task.title}’ 완료`}
-      onClick={() => setTaskCompleted(task.id, !task.isCompleted)}
+      onClick={() => setTaskCompleted(task.id, !task.isCompleted, source)}
       className="-m-2 shrink-0 p-2"
     >
       <CheckCircle checked={task.isCompleted} />

@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+import { trackPage } from "@/lib/analytics";
 import { pastRecords } from "@/lib/stats";
 import type { Task } from "@/lib/types";
 import { RecordRow } from "./MyPage";
@@ -18,6 +20,9 @@ export default function HistoryView({
   onOpenDate: (d: string) => void;
 }) {
   const records = pastRecords(tasks, today);
+  useEffect(() => {
+    trackPage("history");
+  }, []);
   return (
     <div className="min-h-[70vh] bg-white">
       <header className="mb-[23px] flex items-center gap-[7px] border-b border-[#eee] pb-[18px]">

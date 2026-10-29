@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { finishOnboarding } from "@/hooks/useAppStore";
+import { trackOnboardingStep } from "@/lib/analytics";
 import { PREVIEWS } from "./onboarding/Previews";
 import { introSub, introTitle, PrimaryButton } from "./ui";
 
@@ -22,6 +23,12 @@ export default function Onboarding() {
   const track = useRef<HTMLDivElement>(null);
   const last = index === SLIDES.length - 1;
 
+  // 스와이프·스크롤 애니메이션 도중의 중간 값은 제외하고, 잠시 머문 슬라이드만 '본 것'으로 기록한다
+  useEffect(() => {
+    const t = setTimeout(() => trackOnboardingStep((index + 1) as 1 | 2 | 3 | 4), 500);
+    return () => clearTimeout(t);
+  }, [index]);
+
   const goTo = (i: number) => {
     const el = track.current;
     if (el) el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
@@ -37,7 +44,7 @@ export default function Onboarding() {
     <div role="dialog" aria-modal="true" aria-label="일갈피 소개" onKeyDown={onKey} className="fixed inset-0 z-50 flex justify-center bg-[#eceef1]">
       <div className="relative flex h-full w-full max-w-[480px] flex-col bg-[linear-gradient(180deg,#fff_0%,color-mix(in_srgb,var(--color-primary)_6%,white)_42%,#fff_100%)]">
         <div className="flex h-14 shrink-0 items-center justify-end px-4">
-          <button type="button" onClick={finishOnboarding} className="min-h-[44px] px-3 text-sm text-[#767780]">
+          <button type="button" onClick={() => finishOnboarding("skipped")} className="min-h-[44px] px-3 text-sm text-[#767780]">
             건너뛰기
           </button>
         </div>
@@ -84,7 +91,7 @@ export default function Onboarding() {
               />
             ))}
           </div>
-          <PrimaryButton type="button" onClick={() => (last ? finishOnboarding() : goTo(index + 1))} className="min-h-14 w-full rounded-2xl !text-[18px]">
+          <PrimaryButton type="button" onClick={() => (last ? finishOnboarding("completed") : goTo(index + 1))} className="min-h-14 w-full rounded-2xl !text-[18px]">
             {last ? "시작하기" : "다음"}
           </PrimaryButton>
         </div>
