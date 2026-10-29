@@ -61,6 +61,17 @@ try {
   check("anon은 feedback에 직접 쓸 수 없다", !!fbIns.error);
   const rl = await A.c.rpc("hit_rate_limit", { p_bucket: "x", p_subject: "y", p_window_seconds: 60, p_max: 1 });
   check("일반 사용자는 rate limit 함수를 호출할 수 없다", !!rl.error);
+
+  // rate limit 카운터: 테이블은 anon·일반 사용자에게 막혀 있고, 서비스 롤 전용 함수가 실제로 카운트·차단한다.
+  const rlTable = await anonC.from("rate_limits").select("*");
+  check("anon은 rate_limits 테이블을 읽을 수 없다", !!rlTable.error || (rlTable.data ?? []).length === 0);
+  const rlUser = await A.c.from("rate_limits").select("*");
+  check("로그인 사용자도 rate_limits 테이블을 읽을 수 없다", !!rlUser.error || (rlUser.data ?? []).length === 0);
+  const bucket = `verify-${stamp}`;
+  const hit = () => admin.rpc("hit_rate_limit", { p_bucket: bucket, p_subject: "verify-subject", p_window_seconds: 3600, p_max: 2 });
+  const [h1, h2, h3] = [await hit(), await hit(), await hit()];
+  check("rate limit 함수: 한도 내 2회는 허용, 3회째는 차단", h1.data === true && h2.data === true && h3.data === false);
+  await admin.from("rate_limits").delete().eq("bucket", bucket);
 } catch (e) {
   console.error("✗ 검증을 끝내지 못했어요:", e.message);
   failed++;
