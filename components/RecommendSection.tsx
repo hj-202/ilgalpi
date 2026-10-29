@@ -16,7 +16,7 @@ export function TypeBadge({ type }: { type: StoredRecommendation["recommendation
   return type === "ai" ? (
     <span className="rounded-full bg-selected px-2.5 py-0.5 text-xs text-white">AI 추천</span>
   ) : (
-    <span className="rounded-full bg-chip px-2.5 py-0.5 text-xs text-[#65676e]">기본 추천 · AI 분석 아님</span>
+    <span className="rounded-full bg-chip px-2.5 py-0.5 text-xs text-[#65676e]">기본 추천</span>
   );
 }
 
