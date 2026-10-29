@@ -235,7 +235,7 @@ export function initAuth() {
         importOffer: null,
       });
       saveFlag("started");
-      identifyUser(user.id);
+      identifyUser(user.id, user.email);
       if (freshLogin) {
         freshLogin = false;
         track("Entry Completed", { entry_method: "google" });

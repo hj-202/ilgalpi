@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mp = { init: vi.fn(), track: vi.fn(), identify: vi.fn(), reset: vi.fn(), register: vi.fn() };
+const people = { set: vi.fn() };
+const mp = { init: vi.fn(), track: vi.fn(), identify: vi.fn(), reset: vi.fn(), register: vi.fn(), people };
 vi.mock("mixpanel-browser", () => ({ default: mp }));
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
@@ -13,7 +14,10 @@ async function loadAnalytics(token: string | undefined, withWindow = true) {
   return import("@/lib/analytics");
 }
 
-beforeEach(() => Object.values(mp).forEach((f) => f.mockReset()));
+beforeEach(() => {
+  Object.values(mp).forEach((f) => typeof f === "function" && f.mockReset());
+  people.set.mockReset();
+});
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
@@ -57,13 +61,33 @@ describe("analytics — 토큰·브라우저 환경", () => {
     await flush();
   });
 
-  it("로그인 식별은 사용자 ID만, 로그아웃은 reset", async () => {
+  it("로그인 식별은 사용자 ID로, 로그아웃은 reset", async () => {
     const a = await loadAnalytics("tok");
     a.identifyUser("uuid-1");
     a.resetIdentity();
     await flush();
     expect(mp.identify).toHaveBeenCalledWith("uuid-1");
     expect(mp.reset).toHaveBeenCalledTimes(1);
+  });
+
+  it("이메일이 있으면 사용자 프로필 $email에만 등록하고 distinct_id·super property에는 쓰지 않는다", async () => {
+    const a = await loadAnalytics("tok");
+    a.identifyUser("uuid-1", " user@example.com ");
+    await flush();
+    expect(mp.identify).toHaveBeenCalledWith("uuid-1");
+    expect(people.set).toHaveBeenCalledWith({ $email: "user@example.com" });
+    expect(JSON.stringify(mp.register.mock.calls)).not.toContain("user@example.com");
+    expect(mp.track).not.toHaveBeenCalled();
+  });
+
+  it("이메일이 없거나 비어 있으면 프로필에 등록하지 않는다", async () => {
+    const a = await loadAnalytics("tok");
+    a.identifyUser("uuid-1", null);
+    a.identifyUser("uuid-2", "  ");
+    a.identifyUser("uuid-3");
+    await flush();
+    expect(mp.identify).toHaveBeenCalledTimes(3);
+    expect(people.set).not.toHaveBeenCalled();
   });
 });
 

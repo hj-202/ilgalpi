@@ -2,7 +2,8 @@
  * Mixpanel 분석. 이벤트 이름·속성은 이 파일에서만 정의한다.
  * - 토큰(NEXT_PUBLIC_MIXPANEL_TOKEN)이 없거나 로딩·전송이 실패해도 앱은 그대로 동작한다(모든 호출은 조용히 무시).
  * - 자동 클릭 수집·세션 녹화·자동 페이지뷰는 끄고, 아래 정의된 이벤트만 직접 보낸다.
- * - 할 일 제목·의견 본문·이메일·이름·정확한 마감일/시각 등 자유 입력값은 속성으로 보내지 않는다(속성은 아래 타입의 열거값·개수뿐).
+ * - 할 일 제목·의견 본문·이름·정확한 마감일/시각 등 자유 입력값은 이벤트 속성으로 보내지 않는다(속성은 아래 타입의 열거값·개수뿐).
+ * - 이메일은 로그인 사용자의 Mixpanel 사용자 프로필(`$email`)에만 등록한다. distinct_id나 이벤트 속성에는 쓰지 않는다.
  */
 import type { Mixpanel } from "mixpanel-browser";
 
@@ -69,11 +70,13 @@ export function track<E extends EventName>(name: E, ...[props]: EventMap[E] exte
   run((mp) => mp.track(name, props));
 }
 
-/** 로그인 사용자: Supabase 내부 사용자 ID로 식별(이메일·이름은 보내지 않는다) */
-export function identifyUser(userId: string) {
+/** 로그인 사용자: Supabase 내부 사용자 ID로 식별하고, 이메일이 있으면 사용자 프로필 `$email`에만 등록한다(이름은 보내지 않는다) */
+export function identifyUser(userId: string, email?: string | null) {
   run((mp) => {
     mp.identify(userId);
     mp.register({ user_type: "account" });
+    const trimmed = email?.trim();
+    if (trimmed) mp.people.set({ $email: trimmed });
   });
 }
 
