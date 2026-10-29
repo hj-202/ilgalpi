@@ -1,101 +1,106 @@
 "use client";
 
 import { useState } from "react";
-import { setAvailableMinutes } from "@/hooks/useAppStore";
 import { AVAIL_MAX, AVAIL_MIN, AVAIL_PRESETS } from "@/lib/constants";
-import { formatMinutes } from "@/lib/format";
+import { formatAvailable, formatMinutes } from "@/lib/format";
+import { OptionChip } from "./ui";
 
-export default function AvailableTimePicker({ value }: { value: number }) {
-  const [custom, setCustom] = useState<string | null>(null);
+const numInput = "h-10 w-16 rounded-lg border border-[#e5e5e7] px-2 text-center text-sm";
+
+/** 선택한 날짜의 '이날 작업 가능한 시간'. 값은 분 단위로 날짜마다 따로 저장되며, 작업 완료로 자동 차감되지 않는다. */
+export default function AvailableTimePicker({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (minutes: number) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [hours, setHours] = useState("");
+  const [mins, setMins] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const isPreset = AVAIL_PRESETS.includes(value);
+
+  const openCustom = () => {
+    setHours(String(Math.floor(value / 60)));
+    setMins(String(value % 60));
+    setError(null);
+    setEditing(true);
+  };
 
   const applyCustom = () => {
-    const n = Number(custom);
-    if (!Number.isInteger(n) || n < AVAIL_MIN || n > AVAIL_MAX) {
-      setError(`${AVAIL_MIN}분에서 ${AVAIL_MAX}분 사이로 입력해 주세요`);
+    const h = hours.trim() === "" ? 0 : Number(hours);
+    const m = mins.trim() === "" ? 0 : Number(mins);
+    if (!Number.isInteger(h) || !Number.isInteger(m) || h < 0 || m < 0 || m > 59) {
+      setError("시간은 0 이상의 정수, 분은 0~59로 입력해 주세요");
       return;
     }
-    setAvailableMinutes(n);
-    setCustom(null);
+    const total = h * 60 + m;
+    if (total < AVAIL_MIN || total > AVAIL_MAX) {
+      setError(`${AVAIL_MIN}분 이상 24시간 이하로 입력해 주세요`);
+      return;
+    }
+    onChange(total);
+    setEditing(false);
     setError(null);
   };
 
   return (
-    <div>
-      <p className="text-sm font-semibold text-slate-800">
-        오늘 남은 작업 가능 시간 <span className="ml-1 text-indigo-700">{formatMinutes(value)}</span>
-      </p>
-      <p className="text-xs text-slate-500">지금부터 오늘 더 쓸 수 있는 시간을 골라 주세요.</p>
-      <div className="mt-2 flex flex-wrap items-center gap-1.5" role="group" aria-label="오늘 남은 작업 가능 시간">
+    <div className="border-b border-line pb-[18px] pt-[22px]">
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 className="text-lg font-extrabold tracking-tight">이날 작업 가능한 시간</h2>
+        <span className="text-[13px] text-subtle">{formatAvailable(value)}</span>
+      </div>
+      <div className="mt-3.5 flex flex-wrap items-start gap-2" role="group" aria-label="이날 작업 가능한 시간">
         {AVAIL_PRESETS.map((m) => (
-          <button
+          <OptionChip
             key={m}
-            type="button"
-            aria-pressed={value === m}
+            selected={value === m && !editing}
             onClick={() => {
-              setAvailableMinutes(m);
-              setCustom(null);
+              onChange(m);
+              setEditing(false);
               setError(null);
             }}
-            className={`rounded-full border px-3 py-1 text-sm ${
-              value === m
-                ? "border-indigo-600 bg-indigo-600 text-white"
-                : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-            }`}
           >
-            {formatMinutes(m)}
-          </button>
+            {formatAvailable(m)}
+          </OptionChip>
         ))}
-        {custom === null ? (
+        <OptionChip selected={!isPreset || editing} onClick={openCustom}>
+          {!isPreset && !editing ? `직접 설정: ${formatMinutes(value)}` : "직접 설정"}
+        </OptionChip>
+      </div>
+      {editing && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            applyCustom();
+          }}
+          className="mt-3 flex flex-wrap items-center gap-2"
+        >
+          <input autoFocus type="number" inputMode="numeric" min={0} max={24} value={hours} onChange={(e) => setHours(e.target.value)} aria-label="시간" className={numInput} />
+          <span className="text-sm text-subtle">시간</span>
+          <input type="number" inputMode="numeric" min={0} max={59} value={mins} onChange={(e) => setMins(e.target.value)} aria-label="분" className={numInput} />
+          <span className="text-sm text-subtle">분</span>
+          <button type="submit" className="h-10 rounded-lg bg-selected px-4 text-sm font-semibold text-white">
+            적용
+          </button>
           <button
             type="button"
-            onClick={() => setCustom(String(value))}
-            className={`rounded-full border px-3 py-1 text-sm ${
-              AVAIL_PRESETS.includes(value)
-                ? "border-dashed border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
-                : "border-indigo-600 bg-indigo-600 text-white"
-            }`}
-          >
-            {AVAIL_PRESETS.includes(value) ? "직접 입력" : `직접 입력: ${formatMinutes(value)}`}
-          </button>
-        ) : (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              applyCustom();
+            onClick={() => {
+              setEditing(false);
+              setError(null);
             }}
-            className="flex items-center gap-1"
+            className="h-10 px-2 text-sm text-subtle"
           >
-            <input
-              autoFocus
-              type="number"
-              inputMode="numeric"
-              min={AVAIL_MIN}
-              max={AVAIL_MAX}
-              step={15}
-              value={custom}
-              onChange={(e) => setCustom(e.target.value)}
-              aria-label="가용 시간(분) 직접 입력"
-              className="w-20 rounded-lg border border-slate-300 px-2 py-1 text-sm"
-            />
-            <span className="text-sm text-slate-600">분</span>
-            <button type="submit" className="rounded-lg bg-slate-800 px-2.5 py-1 text-sm text-white">
-              적용
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setCustom(null);
-                setError(null);
-              }}
-              className="px-1.5 py-1 text-sm text-slate-500"
-            >
-              취소
-            </button>
-          </form>
-        )}
-      </div>
-      {error && <p className="mt-1 text-xs text-rose-600">{error}</p>}
+            취소
+          </button>
+        </form>
+      )}
+      {error && (
+        <p role="alert" className="mt-2 text-xs text-primary-dark">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

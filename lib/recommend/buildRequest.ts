@@ -1,7 +1,6 @@
 import { fingerprint } from "../fingerprint";
 import type {
   AnalysisTask,
-  AppState,
   Project,
   RecommendationResult,
   RecommendationType,
@@ -9,6 +8,7 @@ import type {
   StoredRecommendation,
   Task,
 } from "../types";
+import type { Facts } from "./grounding";
 import type { ValidationContext } from "./validate";
 
 export function getIncompleteTasks(tasks: Task[]): Task[] {
@@ -21,36 +21,46 @@ export function getActiveProjects(projects: Project[], incomplete: Task[]): Proj
   return projects.filter((p) => ids.has(p.id));
 }
 
-/** AppState → API 요청. 완료 작업은 여기서 제외한다(서버는 완료 작업이 오면 거부). */
-export function buildRecommendRequest(state: AppState, today: string): RecommendRequest {
-  const incomplete = getIncompleteTasks(state.tasks);
+export interface RequestSource {
+  /** 추천 대상 날짜에 계획된 작업(완료 여부 무관, 여기서 미완료만 고른다) */
+  tasks: Task[];
+  projects: Project[];
+  availableMinutes: number;
+  today: string;
+  planDate: string;
+  nowTime: string;
+}
+
+/** 해당 날짜의 미완료 작업 → API 요청. 완료 작업은 여기서 제외한다(서버는 완료 작업이 오면 거부). */
+export function buildRecommendRequest(src: RequestSource): RecommendRequest {
+  const incomplete = getIncompleteTasks(src.tasks);
   return {
-    currentDate: today,
+    currentDate: src.today,
+    planDate: src.planDate,
+    currentTime: src.nowTime,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Seoul",
-    availableMinutes: state.preferences.availableMinutes,
-    projects: getActiveProjects(state.projects, incomplete).map(({ id, name }) => ({ id, name })),
+    availableMinutes: src.availableMinutes,
+    projects: getActiveProjects(src.projects, incomplete).map(({ id, name }) => ({ id, name })),
     tasks: incomplete.map((t) => ({
       id: t.id,
       projectId: t.projectId,
       title: t.title,
       dueDate: t.dueDate,
+      dueTime: t.dueTime,
       importance: t.importance,
-      estimatedMinutes: t.estimatedMinutes,
+      effort: t.effort,
       isCompleted: false as const,
     })),
   };
 }
 
 export function buildValidationContext(
-  tasks: AnalysisTask[],
+  taskIds: string[],
   projectIds: string[],
-  availableMinutes: number,
+  facts?: Facts,
+  taskMeta?: ValidationContext["taskMeta"],
 ): ValidationContext {
-  return {
-    taskMinutes: Object.fromEntries(tasks.map((t) => [t.id, t.estimatedMinutes])),
-    projectIds,
-    availableMinutes,
-  };
+  return { taskIds, projectIds, facts, taskMeta };
 }
 
 /** 분석에 사용한 입력 스냅샷과 함께 저장할 추천을 만든다. */

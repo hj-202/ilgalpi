@@ -1,5 +1,5 @@
-import { AVAIL_MAX, AVAIL_MIN, EST_MAX, EST_MIN, MAX_AI_TASKS, PROJECT_NAME_MAX, TITLE_MAX } from "../constants";
-import { isValidYmd } from "../date";
+import { AVAIL_MAX, AVAIL_MIN, MAX_AI_TASKS, PROJECT_NAME_MAX, TITLE_MAX } from "../constants";
+import { isValidHm, isValidYmd } from "../date";
 import type { RecommendErrorCode, RecommendRequest } from "../types";
 
 type Result =
@@ -19,9 +19,10 @@ const isText = (v: unknown, max: number): v is string =>
 export function validateRecommendRequest(body: unknown): Result {
   const invalid = { ok: false, code: "INVALID_REQUEST" } as const;
   if (!isObj(body)) return invalid;
-  const { currentDate, timezone, availableMinutes, projects, tasks } = body;
+  const { currentDate, planDate, currentTime, timezone, availableMinutes, projects, tasks } = body;
 
-  if (!isValidYmd(currentDate)) return invalid;
+  if (!isValidYmd(currentDate) || !isValidYmd(planDate)) return invalid;
+  if (currentTime !== undefined && !isValidHm(currentTime)) return invalid;
   if (typeof timezone !== "string" || timezone.length === 0 || timezone.length > 64) return invalid;
   if (!isIntIn(availableMinutes, AVAIL_MIN, AVAIL_MAX)) return invalid;
   if (!Array.isArray(projects) || !Array.isArray(tasks)) return invalid;
@@ -50,15 +51,20 @@ export function validateRecommendRequest(body: unknown): Result {
       return invalid;
     }
     if (t.dueDate !== null && !isValidYmd(t.dueDate)) return invalid;
+    // dueTime은 dueDate가 있을 때만 허용. 필드 누락(undefined)은 null로 본다(구버전 호환)
+    const dueTime = t.dueTime ?? null;
+    if (dueTime !== null && (!isValidHm(dueTime) || t.dueDate === null)) return invalid;
     if (t.importance !== "high" && t.importance !== "medium" && t.importance !== "low") return invalid;
-    if (!isIntIn(t.estimatedMinutes, EST_MIN, EST_MAX)) return invalid;
+    const effort = t.effort ?? null;
+    if (effort !== null && effort !== "short" && effort !== "medium" && effort !== "long") return invalid;
     cleanTasks.push({
       id: t.id,
       projectId: t.projectId as string | null,
       title: t.title.trim(),
       dueDate: t.dueDate as string | null,
+      dueTime: dueTime as string | null,
       importance: t.importance,
-      estimatedMinutes: t.estimatedMinutes,
+      effort: effort as RecommendRequest["tasks"][number]["effort"],
       isCompleted: false,
     });
   }
@@ -69,6 +75,8 @@ export function validateRecommendRequest(body: unknown): Result {
     ok: true,
     request: {
       currentDate,
+      planDate,
+      ...(currentTime !== undefined ? { currentTime: currentTime as string } : {}),
       timezone,
       availableMinutes,
       projects: cleanProjects.filter((p) => used.has(p.id)),

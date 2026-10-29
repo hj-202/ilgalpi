@@ -1,224 +1,205 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { setRecommendation, useAppStore } from "@/hooks/useAppStore";
-import { MAX_AI_TASKS } from "@/lib/constants";
-import { formatTodayLabel } from "@/lib/date";
-import { isRecommendationStale } from "@/lib/fingerprint";
-import { ERROR_MESSAGES } from "@/lib/messages";
-import { basicRecommend } from "@/lib/recommend/basic";
+import { useCallback, useEffect, useState } from "react";
 import {
-  buildRecommendRequest,
-  createStoredRecommendation,
-  getActiveProjects,
-  getIncompleteTasks,
-} from "@/lib/recommend/buildRequest";
-import AvailableTimePicker from "./AvailableTimePicker";
-import ResultPanel, { type PanelError } from "./ResultPanel";
-import TaskBoard from "./TaskBoard";
-import TaskModal, { type ModalState } from "./TaskModal";
-import type { RecommendErrorCode, RecommendResponse } from "@/lib/types";
+  dismissAuthMessage,
+  initAuth,
+  refreshClock,
+  retryAccountLoad,
+  retrySync,
+  signOut,
+  useAppStore,
+  type AuthMessage,
+} from "@/hooks/useAppStore";
+import type { LoadNotice } from "@/lib/storage";
+import HistoryView from "./HistoryView";
+import HomeView from "./HomeView";
+import ImportModal from "./ImportModal";
+import MyPage from "./MyPage";
+import Onboarding from "./Onboarding";
+import StartScreen from "./StartScreen";
+import { HomeIcon, RecordIcon, ToastHost } from "./ui";
 
-const CLIENT_TIMEOUT_MS = 45_000;
+const NOTICE_TEXT: Record<Exclude<LoadNotice, null>, string> = {
+  corrupt: "저장된 데이터를 읽지 못해 새로 시작했어요. 이전 데이터는 브라우저에 그대로 남아 있어요.",
+  unavailable: "이 브라우저에서는 데이터를 저장할 수 없어요. 새로고침하면 내용이 사라져요.",
+  "migrated-effort":
+    "예상 소요시간이 새 기준(30분 이내 / 1시간 내외 / 2시간 이상)으로 바뀌었어요. 기존 분 단위 값은 가까운 옵션으로 옮기고 원래 값은 보관돼요.",
+  migrated: "이전 버전의 할 일과 완료 기록을 새 버전으로 옮겼어요. 원본은 그대로 보관돼요.",
+  "migrated-estimated":
+    "이전 버전의 할 일을 새 버전으로 옮겼어요. 일부 완료 기록은 날짜 정보가 없어 오늘로 배치했어요(추정값). 원본은 그대로 보관돼요.",
+};
+
+const AUTH_TEXT: Record<Exclude<AuthMessage, null>, string> = {
+  cancelled: "로그인을 취소했어요. 비회원으로 계속 사용할 수 있어요.",
+  error: "로그인하지 못했어요. 잠시 후 다시 시도해 주세요. 비회원으로는 계속 사용할 수 있어요.",
+  expired: "로그인이 만료되어 로그아웃됐어요. 다시 로그인해 주세요. 저장하지 못한 변경이 있었다면 반영되지 않았을 수 있어요.",
+  unconfigured: "로그인 설정이 연결되지 않아 시작할 수 없어요.",
+};
 
 function Skeleton() {
   return (
-    <div className="mx-auto max-w-6xl animate-pulse px-4 py-8" aria-busy="true" aria-label="불러오는 중">
-      <div className="h-8 w-40 rounded bg-slate-200" />
-      <div className="mt-6 h-32 rounded-xl bg-slate-200" />
-      <div className="mt-6 grid gap-6 lg:grid-cols-12">
-        <div className="h-64 rounded-xl bg-slate-200 lg:col-span-5" />
-        <div className="h-64 rounded-xl bg-slate-200 lg:col-span-7" />
+    <div className="mx-auto min-h-dvh max-w-[480px] animate-pulse bg-white px-5 py-6" aria-busy="true" aria-label="불러오는 중">
+      <div className="h-7 w-24 rounded bg-chip" />
+      <div className="mt-6 h-28 rounded-[19px] bg-chip" />
+      <div className="mt-6 h-40 rounded-xl bg-chip" />
+    </div>
+  );
+}
+
+function Banner({ children, onClose, tone = "plain", action }: { children: React.ReactNode; onClose?: () => void; tone?: "plain" | "error"; action?: React.ReactNode }) {
+  return (
+    <div
+      role={tone === "error" ? "alert" : "status"}
+      className={`mb-3 flex items-start justify-between gap-2 rounded-2xl border px-3.5 py-2.5 text-xs ${tone === "error" ? "border-primary/40 text-primary-dark" : "border-line text-[#65676e]"}`}
+    >
+      <p className="leading-relaxed">{children}</p>
+      <div className="-my-1 flex shrink-0 items-center">
+        {action}
+        {onClose && (
+          <button type="button" onClick={onClose} className="min-h-[36px] px-2 text-ink">
+            닫기
+          </button>
+        )}
       </div>
     </div>
   );
 }
 
+type View = "home" | "records" | "history";
+
 export default function App() {
   const store = useAppStore();
-  const [modal, setModal] = useState<ModalState | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<PanelError | null>(null);
-  const closeModal = useCallback(() => setModal(null), []);
+  const [view, setView] = useState<View>("home");
+  const [selectedState, setSelected] = useState<string | null>(null);
+  const [dismissedNotice, setDismissedNotice] = useState(false);
+
+  // 세션 복원·탭 복귀·자정 경과 때 오늘 날짜를 다시 계산한다(AI는 자동 호출하지 않는다)
+  useEffect(() => {
+    initAuth();
+    const onVisible = () => document.visibilityState === "visible" && refreshClock();
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", refreshClock);
+    let timer: ReturnType<typeof setTimeout>;
+    const schedule = () => {
+      const now = new Date();
+      const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 1);
+      timer = setTimeout(() => {
+        refreshClock();
+        schedule();
+      }, next.getTime() - now.getTime());
+    };
+    schedule();
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", refreshClock);
+      clearTimeout(timer);
+    };
+  }, []);
+
+  // 지난 실행 기록 전체보기는 브라우저 뒤로가기와 함께 동작한다
+  useEffect(() => {
+    const onPop = () => setView((v) => (v === "history" ? "records" : v));
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [view]);
+
+  const openHistory = useCallback(() => {
+    window.history.pushState({ ilgalpi: "history" }, "");
+    setView("history");
+  }, []);
+  const leaveHistory = useCallback(() => {
+    if ((window.history.state as { ilgalpi?: string } | null)?.ilgalpi === "history") window.history.back();
+    else setView("records");
+  }, []);
+  const openDate = useCallback((ymd: string) => {
+    const fromHistory = (window.history.state as { ilgalpi?: string } | null)?.ilgalpi === "history";
+    setSelected(ymd);
+    setView("home");
+    if (fromHistory) window.history.back();
+  }, []);
 
   if (!store) return <Skeleton />;
+  const { app, today, notice, onboarded, started, auth, accountLoad, sync, authMessage } = store;
 
-  const { app, today, notice } = store;
-  const incomplete = getIncompleteTasks(app.tasks);
-  const activeProjects = getActiveProjects(app.projects, incomplete);
-  const availableMinutes = app.preferences.availableMinutes;
-  const rec = app.recommendation;
-  const stale = rec ? isRecommendationStale(rec, app.tasks, availableMinutes, today) : false;
-  const hasTasks = incomplete.length > 0;
-  const tooMany = incomplete.length > MAX_AI_TASKS;
-  const canAnalyze = hasTasks && !tooMany && !loading;
-
-  const showError = (code: RecommendErrorCode) => setError(ERROR_MESSAGES[code]);
-
-  const runAI = async () => {
-    if (!canAnalyze) return;
-    const request = buildRecommendRequest(app, today);
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/recommend", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(request),
-        signal: AbortSignal.timeout(CLIENT_TIMEOUT_MS),
-      });
-      const data = (await res.json()) as RecommendResponse;
-      if (!data.ok) {
-        showError(data.error.code);
-        return;
-      }
-      // 분석에 실제로 사용한 입력 스냅샷으로 지문을 만든다(분석 중 수정한 작업은 stale로 표시됨)
-      setRecommendation(
-        createStoredRecommendation(
-          data.recommendation,
-          "ai",
-          { tasks: request.tasks, availableMinutes: request.availableMinutes, date: request.currentDate },
-          data.meta.model,
-        ),
-      );
-    } catch (err) {
-      showError((err as Error)?.name === "TimeoutError" ? "AI_TIMEOUT" : "NETWORK_ERROR");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const runBasic = () => {
-    if (!hasTasks) return;
-    const result = basicRecommend({ tasks: incomplete, projects: activeProjects, availableMinutes, today });
-    setRecommendation(
-      createStoredRecommendation(result, "basic", { tasks: incomplete, availableMinutes, date: today }),
+  // 세션 확인·계정 데이터 로드가 끝나기 전에는 비회원/로그인 UI를 확정해 보여주지 않는다
+  if (auth.status === "checking" || (auth.status === "account" && accountLoad === "loading")) return <Skeleton />;
+  if (auth.status === "account" && accountLoad === "error") {
+    return (
+      <div className="mx-auto flex min-h-dvh max-w-[480px] flex-col items-center justify-center gap-4 bg-white px-8 text-center">
+        <p role="alert" className="text-[15px] leading-relaxed">
+          계정 데이터를 불러오지 못했어요. 네트워크 연결을 확인하고 다시 시도해 주세요.
+        </p>
+        <div className="flex gap-2">
+          <button type="button" onClick={retryAccountLoad} className="min-h-[44px] rounded-xl bg-primary px-5 text-sm font-bold text-white">
+            다시 시도
+          </button>
+          <button type="button" onClick={() => void signOut()} className="min-h-[44px] rounded-xl border border-line px-5 text-sm text-subtle">
+            로그아웃
+          </button>
+        </div>
+      </div>
     );
-    setError(null);
-  };
+  }
+  if (!onboarded) return <Onboarding />;
+  if (!started && auth.status === "guest") return (<><StartScreen /><ToastHost /></>);
+
+  const selected = selectedState ?? today;
+  const tabClass = (active: boolean) =>
+    `flex min-h-[52px] flex-1 flex-col items-center justify-center gap-0.5 text-xs font-bold ${active ? "text-primary" : "text-[#8a8b90]"}`;
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2">
-            <span aria-hidden className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-sm font-black text-white">
-              갈
-            </span>
-            <span className="text-lg font-extrabold tracking-tight text-slate-900">일갈피</span>
-            <span className="hidden text-xs text-slate-400 sm:inline">ILGALPI</span>
-          </div>
-          <span className="text-sm text-slate-600">{formatTodayLabel(today)}</span>
-        </div>
-      </header>
-
-      <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6">
-        {notice === "corrupt" && (
-          <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
-            저장된 데이터를 불러오지 못해 새로 시작해요.
-          </p>
+    <div className="mx-auto flex min-h-dvh max-w-[480px] flex-col bg-white shadow-[0_0_0_1px_#e3e5e9]">
+      <main className="flex-1 px-5 pb-28 pt-6">
+        {view === "home" && (
+          <header className="mb-[21px]">
+            <h1 className="text-[23px] font-extrabold leading-tight tracking-[-0.765px]">
+              일갈피<span className="text-primary">.</span>
+            </h1>
+            <p className="text-[13px] text-[#76777c]">복잡한 하루 속, 지금 해야 할 일부터</p>
+          </header>
         )}
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">할 일은 많은데, 뭐부터 해야 할지 모르겠다면?</h1>
-          <p className="mt-1 text-sm text-slate-600 sm:text-base">
-            마감과 중요도, 시간을 고려해 지금 가장 필요한 일부터 찾아드려요.
-          </p>
+        {notice && !dismissedNotice && <Banner onClose={() => setDismissedNotice(true)}>{NOTICE_TEXT[notice]}</Banner>}
+        {authMessage && (
+          <Banner tone={authMessage === "cancelled" ? "plain" : "error"} onClose={dismissAuthMessage}>
+            {AUTH_TEXT[authMessage]}
+          </Banner>
+        )}
+        {auth.status === "account" && sync.state === "error" && (
+          <Banner
+            tone="error"
+            action={
+              <button type="button" onClick={retrySync} className="min-h-[36px] px-2 font-bold underline underline-offset-2">
+                다시 시도
+              </button>
+            }
+          >
+            변경 사항을 저장하지 못했어요. 이 기기에는 보이지만 계정에는 아직 저장되지 않았어요.
+          </Banner>
+        )}
 
-          <div className="mt-5 grid gap-5 md:grid-cols-[auto_1fr] md:items-start">
-            <dl className="flex gap-3">
-              <div className="min-w-24 rounded-xl bg-slate-50 px-4 py-3">
-                <dt className="text-xs text-slate-500">미완료 작업</dt>
-                <dd className="text-2xl font-bold text-slate-900">{incomplete.length}</dd>
-              </div>
-              <div className="min-w-24 rounded-xl bg-slate-50 px-4 py-3">
-                <dt className="text-xs text-slate-500">진행 중 프로젝트</dt>
-                <dd className="text-2xl font-bold text-slate-900">{activeProjects.length}</dd>
-              </div>
-            </dl>
-            <AvailableTimePicker value={availableMinutes} />
-          </div>
-
-          <div className="mt-5 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setModal({ mode: "create", projectId: null })}
-              className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-            >
-              + 할 일 추가하기
-            </button>
-            <button
-              type="button"
-              onClick={runAI}
-              disabled={!canAnalyze}
-              aria-busy={loading}
-              title={hasTasks ? undefined : "먼저 할 일을 추가해 주세요"}
-              className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-            >
-              {loading && (
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" aria-hidden />
-              )}
-              {loading ? "분석 중…" : rec ? "다시 추천받기" : "우선순위 추천받기"}
-            </button>
-            <button
-              type="button"
-              onClick={runBasic}
-              disabled={!hasTasks || loading}
-              className="px-2 py-2.5 text-sm font-medium text-slate-600 underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:text-slate-300 disabled:no-underline"
-            >
-              AI 없이 기본 추천 보기
-            </button>
-          </div>
-          {!hasTasks && <p className="mt-2 text-xs text-slate-500">먼저 할 일을 추가해 주세요.</p>}
-          {tooMany && (
-            <p className="mt-2 text-sm text-amber-800">
-              AI 분석은 한 번에 최대 {MAX_AI_TASKS}개까지 가능해요. 완료했거나 필요 없는 작업을 정리해 주세요. (현재{" "}
-              {incomplete.length}개) 기본 추천은 사용할 수 있어요.
-            </p>
-          )}
-          <p className="mt-2 text-xs text-slate-400">AI 분석 시 할 일 정보가 Google Gemini로 전송돼요.</p>
-        </section>
-
-        <div className="grid gap-6 lg:grid-cols-12 lg:items-start">
-          <div className="lg:col-span-5">
-            <TaskBoard
-              projects={app.projects}
-              tasks={app.tasks}
-              today={today}
-              onAddTask={(projectId) => setModal({ mode: "create", projectId })}
-              onEditTask={(task) => setModal({ mode: "edit", task })}
-            />
-          </div>
-          <div className="lg:col-span-7">
-            <ResultPanel
-              rec={rec}
-              stale={stale}
-              tasks={app.tasks}
-              projects={app.projects}
-              today={today}
-              loading={loading}
-              error={error}
-              hasTasks={hasTasks}
-              canAnalyze={canAnalyze}
-              onRecommend={runAI}
-              onBasic={runBasic}
-            />
-          </div>
-        </div>
+        {view === "home" && <HomeView app={app} today={today} selected={selected} onSelect={setSelected} />}
+        {view === "records" && <MyPage store={store} onOpenDate={openDate} onOpenHistory={openHistory} onGoHome={() => setView("home")} />}
+        {view === "history" && <HistoryView tasks={app.tasks} today={today} onBack={leaveHistory} onOpenDate={openDate} />}
       </main>
 
-      <footer className="mx-auto max-w-6xl px-4 pb-8 pt-2 text-xs text-slate-400">
-        데이터는 이 브라우저에만 저장돼요.
-      </footer>
-
-      {modal && (
-        <TaskModal
-          key={modal.mode === "edit" ? modal.task.id : "new"}
-          state={modal}
-          projects={app.projects}
-          onClose={closeModal}
-        />
+      {view !== "history" && (
+        <nav aria-label="주요 화면" className="fixed bottom-0 left-1/2 z-30 flex w-full max-w-[480px] -translate-x-1/2 border-t border-[#ededf0] bg-white/95 pb-[max(10px,env(safe-area-inset-bottom))] pt-2 backdrop-blur">
+          <button type="button" aria-current={view === "home" ? "page" : undefined} onClick={() => setView("home")} className={tabClass(view === "home")}>
+            <HomeIcon />홈
+          </button>
+          <button type="button" aria-current={view === "records" ? "page" : undefined} onClick={() => setView("records")} className={tabClass(view === "records")}>
+            <RecordIcon />내 기록
+          </button>
+        </nav>
       )}
+
+      {store.importOffer && <ImportModal offer={store.importOffer} state={store.importState} />}
+      <ToastHost />
     </div>
   );
 }

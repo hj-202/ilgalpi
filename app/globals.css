@@ -3,16 +3,58 @@
 @theme inline {
   --font-sans: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic",
     "Noto Sans KR", "Segoe UI", Roboto, sans-serif;
+  --color-primary: #f44d52;
+  --color-primary-dark: #e23c41;
+  --color-primary-soft: #fff0f0;
+  --color-ink: #19191b;
+  --color-subtle: #767780;
+  --color-line: #e8e9ed;
+  --color-surface-muted: #f6f7f8;
+  --color-chip: #f0f1f3;
+  --color-selected: #242428;
+  --color-bar: #f6b8bc;
+  --color-rank2: #ffccd1;
+  --color-rank2-ink: #a73b45;
+  --color-rank-soft: #ffe7ea;
+  --color-rank-soft-ink: #b85a64;
+  --color-rec-bg: #fff8f8;
+  --color-rec-line: #ffe8e9;
 }
 
 html {
-  background: var(--color-slate-50);
+  background: #eceef1;
 }
 
 body {
-  background: var(--color-slate-50);
-  color: var(--color-slate-900);
+  background: #eceef1;
+  color: var(--color-ink);
   font-family: var(--font-sans);
   word-break: keep-all;
   overflow-wrap: anywhere;
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 온보딩 가로 슬라이드의 스크롤바 숨김 */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* 키보드 포커스 링은 제거하지 않는다 */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

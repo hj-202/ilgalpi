@@ -5,14 +5,15 @@ export function fingerprint(task: AnalysisTask): string {
     task.projectId ?? "-",
     task.title,
     task.dueDate ?? "-",
+    task.dueTime ?? "-",
     task.importance,
-    task.estimatedMinutes,
+    task.effort ?? "-",
   ].join("|");
 }
 
 /**
  * 추천이 현재 입력과 맞지 않는지(재분석 필요) 판정한다. PRD §5-3-4 S1~S5.
- * 완료 처리 자체는 stale 조건이 아니다.
+ * `tasks`는 추천 대상 날짜에 계획된 작업만 넘긴다. 완료 처리 자체는 stale 조건이 아니다.
  */
 export function isRecommendationStale(
   rec: StoredRecommendation,

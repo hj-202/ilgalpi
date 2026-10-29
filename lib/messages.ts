@@ -4,7 +4,15 @@ import type { RecommendErrorCode } from "./types";
 /** PRD §8-1 오류 코드별 사용자 안내 */
 export const ERROR_MESSAGES: Record<RecommendErrorCode, { message: string; canRetry: boolean }> = {
   MISSING_API_KEY: {
-    message: "AI 추천을 사용할 수 없는 상태예요. 기본 추천으로 먼저 확인해 보세요.",
+    message: "서버에 Gemini API 키가 설정되지 않아 AI 추천을 쓸 수 없어요.",
+    canRetry: false,
+  },
+  AI_AUTH_ERROR: {
+    message: "Gemini API 키가 올바르지 않거나 사용 권한이 없어요. 키를 확인한 뒤 서버를 다시 시작해 주세요.",
+    canRetry: false,
+  },
+  AI_MODEL_ERROR: {
+    message: "설정된 Gemini 모델을 사용할 수 없어요. 모델 이름(GEMINI_MODEL)을 확인해 주세요.",
     canRetry: false,
   },
   INVALID_REQUEST: {
@@ -23,7 +31,11 @@ export const ERROR_MESSAGES: Record<RecommendErrorCode, { message: string; canRe
   AI_RATE_LIMITED: { message: "지금 AI 요청이 많아요. 잠시 후 다시 시도해 주세요.", canRetry: true },
   AI_UPSTREAM_ERROR: { message: "AI 분석 중 문제가 생겼어요. 다시 시도해 주세요.", canRetry: true },
   AI_INVALID_RESPONSE: {
-    message: "AI 결과가 올바르지 않아 표시하지 않았어요. 다시 시도하거나 기본 추천을 확인해 주세요.",
+    message: "AI 결과가 올바르지 않아 표시하지 않았어요. 다시 시도해 주세요.",
+    canRetry: true,
+  },
+  SERVICE_RATE_LIMITED: {
+    message: "짧은 시간에 요청이 많아 AI 추천을 잠시 쉬고 있어요. 잠시 후 다시 시도해 주세요.",
     canRetry: true,
   },
   NETWORK_ERROR: { message: "네트워크 연결을 확인하고 다시 시도해 주세요.", canRetry: true },

@@ -3,7 +3,11 @@ import { RESPONSE_SCHEMA } from "./schema";
 
 export type GeminiResult =
   | { ok: true; text: string }
-  | { ok: false; code: "AI_TIMEOUT" | "AI_RATE_LIMITED" | "AI_UPSTREAM_ERROR" | "AI_INVALID_RESPONSE"; detail: string };
+  | {
+      ok: false;
+      code: "AI_TIMEOUT" | "AI_RATE_LIMITED" | "AI_UPSTREAM_ERROR" | "AI_INVALID_RESPONSE" | "AI_AUTH_ERROR" | "AI_MODEL_ERROR";
+      detail: string;
+    };
 
 interface GeminiPart {
   text?: string;
@@ -15,6 +19,25 @@ interface GeminiResponse {
   promptFeedback?: { blockReason?: string };
 }
 
+/** 응답 상태·메시지를 사용자 안내용 오류 코드로 분류한다. */
+export function classifyHttpError(status: number, message: string): "AI_AUTH_ERROR" | "AI_MODEL_ERROR" | "AI_RATE_LIMITED" | "AI_UPSTREAM_ERROR" {
+  if (status === 429) return "AI_RATE_LIMITED";
+  if (status === 401 || status === 403 || (status === 400 && /api key|API_KEY/i.test(message))) return "AI_AUTH_ERROR";
+  if (status === 404 || (status === 400 && /model/i.test(message) && /not (found|supported)|unsupported/i.test(message))) {
+    return "AI_MODEL_ERROR";
+  }
+  return "AI_UPSTREAM_ERROR";
+}
+
+async function readErrorMessage(res: Response): Promise<string> {
+  try {
+    const body = (await res.json()) as { error?: { message?: string } };
+    return body.error?.message?.slice(0, 200) ?? "";
+  } catch {
+    return "";
+  }
+}
+
 /** Gemini generateContent REST 호출 (SDK 미사용) */
 export async function callGemini(opts: {
   apiKey: string;
@@ -23,19 +46,16 @@ export async function callGemini(opts: {
   timeoutMs: number;
 }): Promise<GeminiResult> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(opts.model)}:generateContent`;
-  const generationConfig: Record<string, unknown> = {
+  const baseConfig: Record<string, unknown> = {
     temperature: 0.2,
     responseMimeType: "application/json",
     responseSchema: RESPONSE_SCHEMA,
   };
   // Gemini 3 이상은 thinkingLevel 지원. 응답 지연을 줄이기 위해 low 사용
-  if (/^gemini-([3-9]|\d{2,})/.test(opts.model)) {
-    generationConfig.thinkingConfig = { thinkingLevel: "low" };
-  }
+  const supportsThinking = /^gemini-([3-9]|\d{2,})/.test(opts.model);
 
-  let res: Response;
-  try {
-    res = await fetch(url, {
+  const post = (generationConfig: Record<string, unknown>) =>
+    fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": opts.apiKey },
       body: JSON.stringify({
@@ -45,6 +65,15 @@ export async function callGemini(opts: {
       }),
       signal: AbortSignal.timeout(opts.timeoutMs),
     });
+
+  let res: Response;
+  try {
+    res = await post(supportsThinking ? { ...baseConfig, thinkingConfig: { thinkingLevel: "low" } } : baseConfig);
+    // thinking 설정을 모델이 거부하면 설정 없이 한 번 더 시도한다
+    if (supportsThinking && res.status === 400) {
+      const message = await readErrorMessage(res.clone());
+      if (/thinking/i.test(message)) res = await post(baseConfig);
+    }
   } catch (err) {
     const name = (err as Error)?.name;
     if (name === "TimeoutError" || name === "AbortError") {
@@ -53,16 +82,9 @@ export async function callGemini(opts: {
     return { ok: false, code: "AI_UPSTREAM_ERROR", detail: `fetch failed: ${name}` };
   }
 
-  if (res.status === 429) return { ok: false, code: "AI_RATE_LIMITED", detail: "HTTP 429" };
   if (!res.ok) {
-    let message = "";
-    try {
-      const body = (await res.json()) as { error?: { message?: string } };
-      message = body.error?.message?.slice(0, 200) ?? "";
-    } catch {
-      // 본문 없음
-    }
-    return { ok: false, code: "AI_UPSTREAM_ERROR", detail: `HTTP ${res.status} ${message}` };
+    const message = await readErrorMessage(res);
+    return { ok: false, code: classifyHttpError(res.status, message), detail: `HTTP ${res.status} ${message}` };
   }
 
   let data: GeminiResponse;

@@ -1,18 +1,21 @@
-import { MAX_FOCUS, MAX_WARNINGS, REASON_MAX } from "../constants";
+import { MAX_WARNINGS, REASON_MAX } from "../constants";
 import { truncate } from "../format";
+import { findUngrounded, type Facts } from "./grounding";
 import type {
-  FocusPlan,
   ProjectRanking,
   RecommendationResult,
   TaskRanking,
 } from "../types";
 
 export interface ValidationContext {
-  /** 분석 대상(미완료) 작업 ID → 예상 소요시간 */
-  taskMinutes: Record<string, number>;
+  /** 분석 대상(미완료) 작업 ID */
+  taskIds: string[];
   /** 분석 대상(진행 중) 프로젝트 ID */
   projectIds: string[];
-  availableMinutes: number;
+  /** 주어지면 이유·주의사항에 입력에 없는 날짜·시각·시간 표현이 있는지 검사한다 */
+  facts?: Facts;
+  /** 주어지면 입력에 없는 마감·중요도를 이유에서 단정하지 않았는지 검사한다 */
+  taskMeta?: Record<string, { hasDue: boolean; importance: string }>;
 }
 
 export type ValidationOutcome =
@@ -102,7 +105,7 @@ export function validateRecommendation(
     return { valid: false, violations: ["응답이 JSON 객체가 아닙니다."] };
   }
   const violations: string[] = [];
-  const taskIds = Object.keys(ctx.taskMinutes);
+  const taskIds = ctx.taskIds;
 
   const taskRankings: TaskRanking[] = checkRankings(
     raw.taskRankings,
@@ -122,36 +125,6 @@ export function validateRecommendation(
     violations,
   ).map(({ id, rank, reason }) => ({ projectId: id, rank, reason }));
 
-  let focusPlan: FocusPlan = { taskIds: [], reason: "" };
-  const focus = raw.focusPlan;
-  if (!isObject(focus) || !Array.isArray(focus.taskIds)) {
-    violations.push("focusPlan.taskIds가 배열이 아닙니다.");
-  } else {
-    const ids = focus.taskIds;
-    if (ids.length > MAX_FOCUS) {
-      violations.push(`focusPlan은 최대 ${MAX_FOCUS}개까지만 포함할 수 있습니다.`);
-    }
-    if (ids.some((id) => typeof id !== "string" || !(id in ctx.taskMinutes))) {
-      violations.push("focusPlan에 존재하지 않는 작업 ID가 포함되었습니다.");
-    } else if (new Set(ids).size !== ids.length) {
-      violations.push("focusPlan에 같은 작업이 중복되었습니다.");
-    } else {
-      const total = (ids as string[]).reduce((sum, id) => sum + ctx.taskMinutes[id], 0);
-      if (total > ctx.availableMinutes) {
-        violations.push(
-          `focusPlan 작업의 소요시간 합계(${total}분)가 가용 시간(${ctx.availableMinutes}분)을 초과합니다.`,
-        );
-      }
-    }
-    const anyFits = taskIds.some((id) => ctx.taskMinutes[id] <= ctx.availableMinutes);
-    if (anyFits && ids.length === 0) {
-      violations.push("가용 시간 안에 끝낼 수 있는 작업이 있으므로 focusPlan에 최소 1개를 포함해야 합니다.");
-    }
-    const reason = cleanText(focus.reason, REASON_MAX.focus);
-    if (!reason) violations.push("focusPlan.reason이 비어 있습니다.");
-    focusPlan = { taskIds: ids as string[], reason: reason ?? "" };
-  }
-
   if (!Array.isArray(raw.warnings)) {
     violations.push("warnings가 배열이 아닙니다.");
   }
@@ -160,6 +133,29 @@ export function validateRecommendation(
     .filter((w): w is string => w !== null)
     .slice(0, MAX_WARNINGS);
 
+  if (ctx.facts) {
+    const texts = [...taskRankings.map((r) => r.reason), ...projectRankings.map((r) => r.reason), ...warnings];
+    for (const text of texts) {
+      const bad = findUngrounded(text, ctx.facts);
+      if (bad.length > 0) {
+        violations.push(`입력에 없는 날짜·시각·시간 표현이 있습니다(${bad.join(", ")}): "${text}"`);
+      }
+    }
+  }
+
+  if (ctx.taskMeta) {
+    for (const r of taskRankings) {
+      const meta = ctx.taskMeta[r.taskId];
+      if (!meta) continue;
+      if (!meta.hasDue && /마감/.test(r.reason) && !/(없|않|미정|아직)/.test(r.reason)) {
+        violations.push(`마감일이 없는 작업에 마감을 언급했습니다: "${r.reason}"`);
+      }
+      if (meta.importance !== "high" && /중요(한|도가 높|합니다|해요)/.test(r.reason) && !/(낮|아니|않)/.test(r.reason)) {
+        violations.push(`중요도가 높지 않은 작업을 중요하다고 했습니다: "${r.reason}"`);
+      }
+    }
+  }
+
   if (violations.length > 0) return { valid: false, violations };
-  return { valid: true, result: { projectRankings, taskRankings, focusPlan, warnings } };
+  return { valid: true, result: { projectRankings, taskRankings, warnings } };
 }
