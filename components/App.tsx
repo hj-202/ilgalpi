@@ -16,6 +16,7 @@ import type { LoadNotice } from "@/lib/storage";
 import HistoryView from "./HistoryView";
 import HomeView from "./HomeView";
 import ImportModal from "./ImportModal";
+import LogoutConfirmModal from "./LogoutConfirmModal";
 import MyPage from "./MyPage";
 import Onboarding from "./Onboarding";
 import StartScreen from "./StartScreen";
@@ -25,7 +26,7 @@ const NOTICE_TEXT: Record<Exclude<LoadNotice, null>, string> = {
   corrupt: "저장된 데이터를 읽지 못해 새로 시작했어요. 이전 데이터는 브라우저에 그대로 남아 있어요.",
   unavailable: "이 브라우저에서는 데이터를 저장할 수 없어요. 새로고침하면 내용이 사라져요.",
   "migrated-effort":
-    "예상 소요시간이 새 기준(30분 이내 / 1시간 내외 / 2시간 이상)으로 바뀌었어요. 기존 분 단위 값은 가까운 옵션으로 옮기고 원래 값은 보관돼요.",
+    "예상 소요시간이 새 기준(1시간 이내 / 1~2시간 / 2시간 초과)으로 바뀌었어요. 기존 분 단위 값은 가까운 옵션으로 옮기고 원래 값은 보관돼요.",
   migrated: "이전 버전의 할 일과 완료 기록을 새 버전으로 옮겼어요. 원본은 그대로 보관돼요.",
   "migrated-estimated":
     "이전 버전의 할 일을 새 버전으로 옮겼어요. 일부 완료 기록은 날짜 정보가 없어 오늘로 배치했어요(추정값). 원본은 그대로 보관돼요.",
@@ -74,6 +75,7 @@ export default function App() {
   const [view, setView] = useState<View>("home");
   const [selectedState, setSelected] = useState<string | null>(null);
   const [dismissedNotice, setDismissedNotice] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
 
   // 세션 복원·탭 복귀·자정 경과 때 오늘 날짜를 다시 계산한다(AI는 자동 호출하지 않는다)
   useEffect(() => {
@@ -139,10 +141,19 @@ export default function App() {
           <button type="button" onClick={retryAccountLoad} className="min-h-[44px] rounded-xl bg-primary px-5 text-sm font-bold text-white">
             다시 시도
           </button>
-          <button type="button" onClick={() => void signOut()} className="min-h-[44px] rounded-xl border border-line px-5 text-sm text-subtle">
+          <button type="button" onClick={() => setConfirmLogout(true)} className="min-h-[44px] rounded-xl border border-line px-5 text-sm text-subtle">
             로그아웃
           </button>
         </div>
+        {confirmLogout && (
+          <LogoutConfirmModal
+            onCancel={() => setConfirmLogout(false)}
+            onConfirm={() => {
+              setConfirmLogout(false);
+              void signOut();
+            }}
+          />
+        )}
       </div>
     );
   }

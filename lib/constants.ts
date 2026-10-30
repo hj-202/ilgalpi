@@ -20,15 +20,15 @@ export const AVAIL_PRESETS = [60, 120, 180, 240, 300, 360];
 export const FEEDBACK_MAX = 1000;
 
 export const EFFORT_OPTIONS = [
-  { value: "short", label: "30분 이내" },
-  { value: "medium", label: "1시간 내외" },
-  { value: "long", label: "2시간 이상" },
+  { value: "short", label: "1시간 이내" },
+  { value: "medium", label: "1~2시간" },
+  { value: "long", label: "2시간 초과" },
 ] as const;
 
 export const EFFORT_LABEL = {
-  short: "30분 이내",
-  medium: "1시간 내외",
-  long: "2시간 이상",
+  short: "1시간 이내",
+  medium: "1~2시간",
+  long: "2시간 초과",
 } as const;
 
 export const IMPORTANCE_LABEL = {

@@ -91,7 +91,7 @@ describe("basicRecommend", () => {
     expect(r.taskRankings[0].taskId).toBe("t-높음무마감");
   });
 
-  it("2시간 이상 작업은 이날 작업 가능 시간이 2시간 미만이면 주의사항이 생기지만 순위에서 빠지지 않는다", () => {
+  it("2시간 초과 작업은 이날 작업 가능 시간이 2시간 미만이면 주의사항이 생기지만 순위에서 빠지지 않는다", () => {
     const list = [
       task("긴작업", { due: "2026-10-08", imp: "high", effort: "long" }),
       task("짧은작업", { imp: "low", effort: "short" }),

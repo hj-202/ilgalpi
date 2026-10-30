@@ -58,7 +58,7 @@ export default function HomeView({
     trackPage(showingRec ? "recommendation" : "home");
   }, [showingRec]);
 
-  const storeBasic = (reason: string) => {
+  const storeBasic = (reason: string, excludedCompletedCount: number) => {
     const result = basicRecommend({
       tasks: incomplete,
       projects: getActiveProjects(app.projects, incomplete),
@@ -66,7 +66,7 @@ export default function HomeView({
       today,
       nowTime,
     });
-    setRecommendation(selected, createStoredRecommendation(result, "basic", { tasks: incomplete, availableMinutes, date: today }));
+    setRecommendation(selected, createStoredRecommendation(result, "basic", { tasks: incomplete, availableMinutes, date: today, excludedCompletedCount }));
     track("Recommendation Viewed", { recommendation_type: "basic", result_source: "new" });
     setNotice({ kind: "fallback", message: `${reason} 조건 기반 추천으로 순서를 정리했어요.`, canRetry: true });
     setViewRec(true);
@@ -76,6 +76,8 @@ export default function HomeView({
     if (incomplete.length < 2 || tooMany || loading) return;
     track("Recommendation Requested", { task_count: incomplete.length, is_retry: rec !== null });
     const planDate = selected;
+    // 완료한 작업은 추천에서 제외된다. 제외한 개수를 추천 결과와 함께 저장해 안내 문구의 기준으로 쓴다
+    const excludedCompletedCount = dayTasks.filter((t) => t.isCompleted).length;
     const request = buildRecommendRequest({ tasks: dayTasks, projects: app.projects, availableMinutes, today, planDate, nowTime });
     setLoading(true);
     setNotice(null);
@@ -98,7 +100,7 @@ export default function HomeView({
           createStoredRecommendation(
             data.recommendation,
             "ai",
-            { tasks: request.tasks, availableMinutes: request.availableMinutes, date: request.currentDate },
+            { tasks: request.tasks, availableMinutes: request.availableMinutes, date: request.currentDate, excludedCompletedCount },
             data.meta.model,
           ),
         );
@@ -118,7 +120,7 @@ export default function HomeView({
       // 최신 결과가 이미 있으면 오류만으로 대체하거나 지우지 않는다
       setNotice({ kind: "error", message: info.message, canRetry: info.canRetry });
     } else {
-      storeBasic(info.message);
+      storeBasic(info.message, excludedCompletedCount);
     }
   };
 
@@ -158,7 +160,7 @@ export default function HomeView({
         />
       )}
 
-      <AvailableTimePicker value={availableMinutes} onChange={(m) => setDailyAvailableMinutes(selected, m)} />
+      <AvailableTimePicker value={availableMinutes} onChange={(m) => setDailyAvailableMinutes(selected, m)} readOnly={showingRec} />
       <RecommendCta
         hasRec={rec !== null}
         incompleteCount={incomplete.length}

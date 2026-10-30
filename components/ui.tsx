@@ -113,6 +113,24 @@ export function Stamp({ size = 22, label = "모두 완료" }: { size?: number; l
   );
 }
 
+/** `1/10 완료`: 완료한 개수만 강조(Semibold·진한 색)하고 나머지는 부모의 회색 Regular를 따른다 */
+export function ProgressCount({ done, total }: { done: number; total: number }) {
+  return (
+    <>
+      <strong className="font-semibold text-ink">{done}</strong>/{total} 완료
+    </>
+  );
+}
+
+/** 안내 문구 앞에 두는 작은 Info 아이콘(브랜드 레드) */
+export function InfoIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 48 48" width={size} height={size} aria-hidden className="shrink-0 text-primary">
+      <path fill="currentColor" d="M24 6a18 18 0 1 0 0 36 18 18 0 0 0 0-36Zm-2 10h4v13h-4Zm2 21a2.6 2.6 0 1 1 0-5.2 2.6 2.6 0 0 1 0 5.2Z" transform="rotate(180 24 24)" />
+    </svg>
+  );
+}
+
 const iconProps = {
   width: 22,
   height: 22,

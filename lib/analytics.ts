@@ -48,42 +48,109 @@ function load(): Promise<Mixpanel | null> {
         persistence: "localStorage",
         ip: false,
       });
-      mixpanel.register({ environment: process.env.NODE_ENV });
+      // 이전 방문에서 식별된 상태가 남아 있으면 account, 아니면 guest. 인증 확인 후 identifyUser/resetIdentity가 바로잡는다
+      mixpanel.register({ environment: process.env.NODE_ENV, user_type: identifiedUserId(mixpanel) ? "account" : "guest" });
       return mixpanel;
     })
     .catch(() => null);
   return ready;
 }
 
-function run(fn: (mp: Mixpanel) => void) {
+/**
+ * 인증 확인 게이트: Supabase 세션 확인이 끝나기 전에는 `track`을 보류한다(이전 계정의 Mixpanel ID로 기록되는 것을 막는다).
+ * - pending: 확인 중. 이벤트를 보류한다(최대 MAX_HELD개, 넘으면 버린다).
+ * - settled: identifyUser/resetIdentity로 식별 상태가 확정됨. 보류분을 호출 순서대로 한 번씩 보내고 이후는 바로 보낸다.
+ * - uncertain: 확인 오류·시간 초과. Mixpanel이 계정으로 식별된 채라면(이전 계정일 수 있음) 이벤트를 버리고, 익명이면 보낸다.
+ *   이후 인증이 뒤늦게 확정되면 settled로 전환돼 정상 수집된다.
+ */
+const AUTH_WAIT_MS = 8000;
+const MAX_HELD = 100;
+let authState: "pending" | "uncertain" | "settled" = "pending";
+const held: Array<(mp: Mixpanel) => void> = [];
+
+function exec(mp: Mixpanel, fn: (mp: Mixpanel) => void) {
+  try {
+    fn(mp);
+  } catch {
+    /* 분석 오류는 서비스에 영향을 주지 않는다 */
+  }
+}
+
+/**
+ * 첫 인증 결과(identify/reset)를 실행한 직후, 그때까지 보류된 이벤트를 호출 순서대로 보낸다.
+ * 이후에 호출되는 이벤트는 보류 없이 호출 순서대로 처리된다(예: 로그아웃 reset 뒤 이벤트는 새 익명 ID로).
+ */
+function settleAuth(fn: (mp: Mixpanel) => void) {
+  if (authState === "settled") return run(fn);
+  authState = "settled";
+  const items = held.splice(0);
   void load().then((mp) => {
     if (!mp) return;
-    try {
-      fn(mp);
-    } catch {
-      /* 분석 오류는 서비스에 영향을 주지 않는다 */
-    }
+    exec(mp, fn);
+    for (const item of items) exec(mp, item);
+  });
+}
+
+/** 인증 상태를 확인할 수 없는 경우(세션 조회 오류·시간 초과). 잘못된 사용자에게 귀속될 수 있는 보류 이벤트는 버린다 */
+export function markAuthUncertain() {
+  if (authState !== "pending") return;
+  authState = "uncertain";
+  const items = held.splice(0);
+  void load().then((mp) => {
+    if (!mp || identifiedUserId(mp)) return;
+    for (const item of items) exec(mp, item);
+  });
+}
+
+if (typeof window !== "undefined" && TOKEN) setTimeout(markAuthUncertain, AUTH_WAIT_MS);
+
+function run(fn: (mp: Mixpanel) => void, opts: { gated?: boolean } = {}) {
+  if (opts.gated && authState === "pending") {
+    if (held.length < MAX_HELD) held.push(fn);
+    return;
+  }
+  const guarded = opts.gated && authState === "uncertain";
+  void load().then((mp) => {
+    if (!mp || (guarded && identifiedUserId(mp))) return;
+    exec(mp, fn);
   });
 }
 
 export function track<E extends EventName>(name: E, ...[props]: EventMap[E] extends Record<string, never> ? [] : [EventMap[E]]): void {
-  run((mp) => mp.track(name, props));
+  run((mp) => mp.track(name, props), { gated: true });
 }
 
-/** 로그인 사용자: Supabase 내부 사용자 ID로 식별하고, 이메일이 있으면 사용자 프로필 `$email`에만 등록한다(이름은 보내지 않는다) */
+/** 현재 Mixpanel에 식별된 사용자 ID. 익명(`$device:`)이면 undefined */
+function identifiedUserId(mp: Mixpanel): string | undefined {
+  const id = mp.get_property("$user_id");
+  return typeof id === "string" && id ? id : undefined;
+}
+
+/**
+ * 로그인 사용자: Supabase 내부 사용자 ID로 식별하고, 이메일이 있으면 사용자 프로필 `$email`에만 등록한다(이름은 보내지 않는다).
+ * - 이미 같은 ID로 식별돼 있으면 identify를 다시 보내지 않는다(세션 복원·재호출).
+ * - 다른 계정으로 식별돼 있으면 먼저 reset해, 이전 계정의 ID가 새 계정에 병합($anon_distinct_id)되지 않게 한다.
+ */
 export function identifyUser(userId: string, email?: string | null) {
-  run((mp) => {
-    mp.identify(userId);
+  settleAuth((mp) => {
+    const current = identifiedUserId(mp);
+    if (current !== userId) {
+      if (current) mp.reset();
+      mp.identify(userId);
+    }
     mp.register({ user_type: "account" });
     const trimmed = email?.trim();
     if (trimmed) mp.people.set({ $email: trimmed });
   });
 }
 
-/** 로그아웃·세션 종료: 식별 상태를 초기화하고 새 익명 ID를 쓴다 */
+/**
+ * 로그아웃·세션 없음 확인: 식별 상태가 남아 있을 때만 reset해 새 익명 ID를 쓴다(이미 익명이면 reset하지 않아 중복 reset이 없다).
+ * 인증 확인 중(`checking`)에는 호출하지 않는다.
+ */
 export function resetIdentity() {
-  run((mp) => {
-    mp.reset();
+  settleAuth((mp) => {
+    if (identifiedUserId(mp)) mp.reset();
     mp.register({ user_type: "guest", environment: process.env.NODE_ENV });
   });
 }

@@ -7,6 +7,7 @@ import { formatMonthDay, weekdayIndex } from "@/lib/date";
 import { buildPeriod, pastRecords, type RecordMode } from "@/lib/stats";
 import { supabaseConfigured } from "@/lib/supabase/client";
 import FeedbackModal from "./FeedbackModal";
+import LogoutConfirmModal from "./LogoutConfirmModal";
 import RecordChart from "./RecordChart";
 import { focusQuickAdd } from "./DaySection";
 import { ChevronIcon, EmptyState, emptyCtaOutline } from "./ui";
@@ -66,6 +67,8 @@ export default function MyPage({
   const { app, today, auth, sync } = store;
   const [period, setPeriod] = useState<{ mode: RecordMode; offset: number }>({ mode: "week", offset: 0 });
   const [feedback, setFeedback] = useState(false);
+  // 로그아웃 확인 모달: 열 때 저장되지 않은 변경 여부를 함께 기록한다(null=닫힘)
+  const [confirmLogout, setConfirmLogout] = useState<{ unsaved: boolean } | null>(null);
   useEffect(() => {
     trackPage("records");
   }, []);
@@ -81,7 +84,7 @@ export default function MyPage({
     if (r !== "started") setBusy(false);
   };
   const logout = async () => {
-    if (hasUnsavedChanges() && !window.confirm("아직 저장되지 않은 변경이 있어요. 그래도 로그아웃할까요?")) return;
+    setConfirmLogout(null);
     await signOut();
   };
 
@@ -131,7 +134,7 @@ export default function MyPage({
                 {auth.user.email && <small className="block truncate text-xs text-[#767780]">{auth.user.email}</small>}
               </div>
             </div>
-            <button type="button" onClick={logout} className="min-h-[40px] shrink-0 px-2 text-[13px] text-subtle underline underline-offset-2">
+            <button type="button" onClick={() => setConfirmLogout({ unsaved: hasUnsavedChanges() })} className="min-h-[40px] shrink-0 px-2 text-[13px] text-subtle underline underline-offset-2">
               로그아웃
             </button>
           </div>
@@ -208,6 +211,7 @@ export default function MyPage({
         </button>
       </div>
       {feedback && <FeedbackModal onClose={() => setFeedback(false)} />}
+      {confirmLogout && <LogoutConfirmModal unsavedChanges={confirmLogout.unsaved} onCancel={() => setConfirmLogout(null)} onConfirm={() => void logout()} />}
     </div>
   );
 }

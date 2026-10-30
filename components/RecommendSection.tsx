@@ -3,7 +3,7 @@
 import { formatMonthDay } from "@/lib/date";
 import type { Project, StoredRecommendation, Task } from "@/lib/types";
 import { CompleteCheck, ConditionChips } from "./TaskItem";
-import { ChevronIcon, EmptyState, PrimaryButton, ProgressBar } from "./ui";
+import { ChevronIcon, EmptyState, InfoIcon, PrimaryButton, ProgressBar, ProgressCount } from "./ui";
 
 export interface PanelNotice {
   kind: "error" | "fallback";
@@ -65,7 +65,8 @@ export function RecommendResult({
   const taskById = new Map(dayTasks.map((t) => [t.id, t]));
   const projectById = new Map(projects.map((p) => [p.id, p]));
   const ranked = rec ? rec.taskRankings.filter((r) => taskById.has(r.taskId)) : [];
-  const doneCount = ranked.filter((r) => taskById.get(r.taskId)!.isCompleted).length;
+  // 완료율은 추천 목록이 아니라 해당 날짜의 전체 할 일 기준이다(재추천으로 목록에서 빠진 완료 작업도 포함)
+  const doneCount = dayTasks.filter((t) => t.isCompleted).length;
   const title = selected === today ? "오늘의 우선순위" : `${formatMonthDay(selected)}의 우선순위`;
   const allDone = ranked.length > 0 && doneCount === ranked.length;
   // 홈과 같은 기준: 선택한 날짜의 실제 할 일이 1개 이상이고 모두 완료
@@ -98,13 +99,19 @@ export function RecommendResult({
             {dayAllDone ? (
               <span className="font-semibold text-primary-dark">{selected === today ? "오늘 할 일을 모두 마쳤어요. 수고했어요!" : "이 날의 할 일을 모두 마쳤어요."}</span>
             ) : (
-              <span>추천 순서는 유지돼요</span>
+              <span>{stale ? "이전 추천 순위가 표시되고 있어요" : "완료해도 추천 순서는 유지돼요"}</span>
             )}
             <span>
-              {doneCount}/{ranked.length} 완료
+              <ProgressCount done={doneCount} total={dayTasks.length} />
             </span>
           </div>
-          <ProgressBar done={doneCount} total={ranked.length} />
+          <ProgressBar done={doneCount} total={dayTasks.length} />
+          {(rec?.excludedCompletedCount ?? 0) > 0 && !stale && (
+            <p className="mt-2 flex items-center gap-1 text-xs text-[#4a4b52]">
+              <InfoIcon />
+              완료한 작업을 제외하고 우선순위를 다시 정했어요.
+            </p>
+          )}
         </div>
       )}
 
@@ -125,7 +132,7 @@ export function RecommendResult({
       <div className={`rounded-[18px] border border-rec-line bg-rec-bg px-[15px] pb-3.5 pt-3 ${loading ? "opacity-60" : ""}`}>
         {stale && (
           <p role="status" className="mb-1 rounded-[10px] bg-[#fff1f2] px-3 py-2.5 text-xs text-[#bc434b]">
-            할 일이나 조건이 바뀌었어요. 아래에서 다시 추천받으면 순위를 갱신할 수 있어요.
+            할 일이나 조건이 변경됐어요. 최신 우선순위를 확인하려면 다시 추천받아 주세요.
           </p>
         )}
         {ranked.length === 0 ? (

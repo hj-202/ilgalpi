@@ -1,6 +1,6 @@
 export type Importance = "high" | "medium" | "low";
 
-/** 작업 규모. short=30분 이내, medium=1시간 내외, long=2시간 이상. null=미정 */
+/** 작업 규모. short=1시간 이내(60분 이하), medium=1~2시간(60분 초과 120분 이하), long=2시간 초과(120분 초과). null=미정 */
 export type Effort = "short" | "medium" | "long";
 
 export interface Project {
@@ -62,6 +62,8 @@ export interface StoredRecommendation extends RecommendationResult {
   generatedForDate: string;
   availableMinutes: number;
   taskFingerprints: Record<string, string>;
+  /** 이 추천을 만들 때 목록에서 제외한 완료 작업 수. 없으면(이전 데이터) 제외하지 않은 것으로 본다 */
+  excludedCompletedCount?: number;
   model?: string;
 }
 

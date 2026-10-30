@@ -143,7 +143,7 @@ describe("POST /api/recommend", () => {
     const prompt: string = sent.contents[0].parts[0].text;
     expect(prompt).not.toContain(UUID_A);
     expect(prompt).toContain('"daysUntilDue": 0');
-    expect(prompt).toContain('"effort": "1시간 내외"');
+    expect(prompt).toContain('"effort": "1~2시간"');
     expect(prompt).toContain('"planDate": "2026-10-08"');
     expect(prompt).not.toContain("estimatedMinutes");
     expect(prompt).not.toContain("isCompleted");

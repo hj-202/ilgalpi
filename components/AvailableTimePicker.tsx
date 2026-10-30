@@ -12,9 +12,12 @@ const numInput = "h-10 w-16 rounded-lg border border-[#e5e5e7] px-2 text-center 
 export default function AvailableTimePicker({
   value,
   onChange,
+  readOnly = false,
 }: {
   value: number;
   onChange: (minutes: number) => void;
+  /** 추천 결과 화면: 선택 UI 없이 설정된 시간만 한 줄로 보여준다(수정은 할 일 목록 화면에서) */
+  readOnly?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [hours, setHours] = useState("");
@@ -51,8 +54,10 @@ export default function AvailableTimePicker({
     <div className="border-b border-line pb-[18px] pt-[22px]">
       <div className="flex items-baseline justify-between gap-2">
         <h2 className="text-lg font-extrabold tracking-tight">이날 작업 가능한 시간</h2>
-        <span className="text-[13px] text-subtle">{formatAvailable(value)}</span>
+        <span className={readOnly ? "text-[13px] font-semibold text-[#222222]" : "text-[13px] text-subtle"}>{formatAvailable(value)}</span>
       </div>
+      {!readOnly && (
+      <>
       <div className="mt-3.5 flex flex-wrap items-start gap-2" role="group" aria-label="이날 작업 가능한 시간">
         {AVAIL_PRESETS.map((m) => (
           <OptionChip
@@ -103,6 +108,8 @@ export default function AvailableTimePicker({
         <p role="alert" className="mt-2 text-xs text-primary-dark">
           {error}
         </p>
+      )}
+      </>
       )}
     </div>
   );

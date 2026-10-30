@@ -1,6 +1,6 @@
 "use client";
 
-import { fieldTypesOf, identifyUser, resetIdentity, track } from "@/lib/analytics";
+import { fieldTypesOf, identifyUser, markAuthUncertain, resetIdentity, track } from "@/lib/analytics";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useSyncExternalStore } from "react";
 import { applyPending, diffState, type Op } from "@/lib/account/rows";
@@ -220,7 +220,10 @@ export function initAuth() {
     if (result === "cancelled" || result === "error") commit({ authMessage: result });
   }
   const sb = getBrowserSupabase();
-  if (!sb) return;
+  if (!sb) {
+    resetIdentity(); // 계정 기능이 없는 환경: 남아 있는 이전 식별을 정리하고 보류 이벤트를 푼다
+    return;
+  }
 
   const apply = (user: AccountInfo | null) => {
     const cur = ensureLoaded();
@@ -243,7 +246,8 @@ export function initAuth() {
       void loadAccount(sb, user, true);
     } else {
       const wasAccount = cur.auth.status === "account";
-      if (wasAccount) resetIdentity();
+      // 세션이 없음이 확인된 시점(로그아웃·만료·시작 시 세션 없음). 이전 계정 식별이 남아 있을 때만 reset된다
+      resetIdentity();
       pending.clear();
       commit({
         auth: { status: "guest", configured: true, user: null },
@@ -260,6 +264,7 @@ export function initAuth() {
   sb.auth.getSession().then(({ data, error }) => {
     if (error) {
       commit({ auth: { status: "guest", configured: true, user: null }, authMessage: "error" });
+      markAuthUncertain(); // 인증 상태를 알 수 없음: 이전 계정으로 귀속될 수 있는 보류 이벤트는 버리고, 이후 인증이 확정되면 정상 수집한다
       return;
     }
     apply(data.session ? toAccountInfo(data.session.user) : null);

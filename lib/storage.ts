@@ -153,11 +153,11 @@ export function migrateV1ToV2(legacy: LegacyEnvelope, today: string): MigrationR
 
 // ---------- v2 → v3 ----------
 
-/** 분 단위 값을 새 규모 옵션에 대응시킨다: ≤30 → 30분 이내, ≤90 → 1시간 내외, 그 이상 → 2시간 이상 */
+/** 분 단위 값을 새 규모 옵션에 대응시킨다: ≤60 → 1시간 이내, ≤120 → 1~2시간, 그 이상 → 2시간 초과 */
 export function effortFromMinutes(minutes: number | null): Effort | null {
   if (minutes === null) return null;
-  if (minutes <= 30) return "short";
-  if (minutes <= 90) return "medium";
+  if (minutes <= 60) return "short";
+  if (minutes <= 120) return "medium";
   return "long";
 }
 

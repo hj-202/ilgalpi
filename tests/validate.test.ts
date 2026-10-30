@@ -18,7 +18,7 @@ function valid() {
       { projectId: "p2", rank: 2, reason: "이유 B" },
       { projectId: "p1", rank: 1, reason: "이유 A" },
     ],
-    warnings: ["‘포트폴리오’는 2시간 이상 걸릴 수 있어요"],
+    warnings: ["‘포트폴리오’는 2시간을 넘을 수 있어요"],
   };
 }
 
@@ -114,8 +114,8 @@ describe("근거 검사: 입력에 없는 날짜·시각·시간 표현 금지",
   });
 
   it("입력에 있는 값과 규모 라벨은 허용한다", () => {
-    expect(findUngrounded("10월 22일 18:00 마감이고 30분 이내 작업이라 먼저 하세요", facts)).toEqual([]);
-    expect(findUngrounded("2시간 이상 걸릴 수 있고 이날 가능한 시간은 2시간이에요", facts)).toEqual([]);
+    expect(findUngrounded("10월 22일 18:00 마감이고 1시간 이내 작업이라 먼저 하세요", facts)).toEqual([]);
+    expect(findUngrounded("2시간 초과 걸릴 수 있고 이날 가능한 시간은 2시간이에요", facts)).toEqual([]);
     expect(findUngrounded("10/22 마감이에요", facts)).toEqual([]);
   });
 

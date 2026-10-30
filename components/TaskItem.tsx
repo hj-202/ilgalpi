@@ -9,13 +9,14 @@ import DueSheet, { CalendarIcon } from "./DueSheet";
 import { Chip, ChevronIcon, CloseIcon, OptionChip } from "./ui";
 
 /** 원형 체크 표시(완료 체크와 '할 일 옮기기' 선택이 같은 모양을 쓴다) */
-export function CheckCircle({ checked }: { checked: boolean }) {
+export function CheckCircle({ checked, disabled = false }: { checked: boolean; disabled?: boolean }) {
+  const style = disabled
+    ? "border-[#d6d7dc] bg-[#d6d7dc]"
+    : checked
+      ? "border-primary bg-primary"
+      : "border-[#c9cad1] bg-white";
   return (
-    <span
-      className={`flex h-[22px] w-[22px] items-center justify-center rounded-full border-2 ${
-        checked ? "border-primary bg-primary" : "border-[#c9cad1] bg-white"
-      }`}
-    >
+    <span className={`flex h-[22px] w-[22px] items-center justify-center rounded-full border-2 ${style}`}>
       {checked && (
         <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
           <path d="M2.5 6.2l2.4 2.4 4.6-4.9" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -210,7 +211,20 @@ export default function TaskItem({
     <li className="py-[15px]">
       <div className="flex items-start gap-[9px]">
         <div className="pt-0.5">
-          {selectable && !task.isCompleted ? (
+          {selectable && task.isCompleted ? (
+            // 옮기기 모드: 이미 완료한 작업은 선택할 수 없다(Disabled / Checked)
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked
+              aria-disabled
+              disabled
+              aria-label={`‘${task.title}’ 이미 완료한 작업이라 옮길 수 없어요`}
+              className="-m-2 shrink-0 cursor-not-allowed p-2"
+            >
+              <CheckCircle checked disabled />
+            </button>
+          ) : selectable ? (
             <button
               type="button"
               role="checkbox"

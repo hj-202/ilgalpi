@@ -67,7 +67,7 @@ export function buildValidationContext(
 export function createStoredRecommendation(
   result: RecommendationResult,
   type: RecommendationType,
-  analyzed: { tasks: AnalysisTask[]; availableMinutes: number; date: string },
+  analyzed: { tasks: AnalysisTask[]; availableMinutes: number; date: string; excludedCompletedCount?: number },
   model?: string,
 ): StoredRecommendation {
   return {
@@ -77,6 +77,7 @@ export function createStoredRecommendation(
     generatedForDate: analyzed.date,
     availableMinutes: analyzed.availableMinutes,
     taskFingerprints: Object.fromEntries(analyzed.tasks.map((t) => [t.id, fingerprint(t)])),
+    ...(analyzed.excludedCompletedCount ? { excludedCompletedCount: analyzed.excludedCompletedCount } : {}),
     ...(model ? { model } : {}),
   };
 }

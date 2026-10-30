@@ -53,11 +53,11 @@ describe("v2 → v3 (소요시간 규모 옵션)", () => {
   it("분 단위 값을 가까운 규모 옵션으로 옮기고 원래 값은 legacyMinutes에 보존한다", () => {
     expect(effortFromMinutes(15)).toBe("short");
     expect(effortFromMinutes(30)).toBe("short");
-    expect(effortFromMinutes(31)).toBe("medium");
-    expect(effortFromMinutes(45)).toBe("medium");
-    expect(effortFromMinutes(60)).toBe("medium");
-    expect(effortFromMinutes(90)).toBe("medium");
-    expect(effortFromMinutes(120)).toBe("long");
+    expect(effortFromMinutes(61)).toBe("medium");
+    expect(effortFromMinutes(45)).toBe("short");
+    expect(effortFromMinutes(60)).toBe("short");
+    expect(effortFromMinutes(120)).toBe("medium");
+    expect(effortFromMinutes(121)).toBe("long");
     expect(effortFromMinutes(480)).toBe("long");
     expect(effortFromMinutes(null)).toBeNull();
   });
@@ -69,7 +69,7 @@ describe("v2 → v3 (소요시간 규모 옵션)", () => {
     expect(state.version).toBe(3);
     expect(mappedEffort).toBe(4); // 분 값이 있던 4건만(미정은 제외)
     expect(state.tasks.map((t) => t.id)).toEqual(["a", "b", "c", "d", "n"]);
-    expect(state.tasks[0]).toMatchObject({ effort: "medium", legacyMinutes: 45, dueDate: "2026-10-25", plannedDate: TODAY });
+    expect(state.tasks[0]).toMatchObject({ effort: "short", legacyMinutes: 45, dueDate: "2026-10-25", plannedDate: TODAY });
     expect(state.tasks[1]).toMatchObject({ effort: "short", legacyMinutes: 30, isCompleted: true, completedAt: "2026-10-09T03:00:00.000Z" });
     expect(state.tasks[4]).toMatchObject({ effort: null, legacyMinutes: null, dueTime: "18:10" });
     expect("estimatedMinutes" in state.tasks[0]).toBe(false);

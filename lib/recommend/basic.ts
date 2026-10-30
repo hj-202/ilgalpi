@@ -132,7 +132,7 @@ export function basicRecommend(input: BasicInput): RecommendationResult {
     for (const s of scored) {
       if (s.task.effort === "long") {
         warnings.push(
-          `${q(s.task.title)}은(는) 2시간 이상 걸릴 수 있어요. 이날 작업 가능 시간(${formatMinutes(availableMinutes)})보다 길 수 있으니 따로 시간을 확보해 보세요.`,
+          `${q(s.task.title)}은(는) 2시간을 넘을 수 있어요. 이날 작업 가능 시간(${formatMinutes(availableMinutes)})보다 길 수 있으니 따로 시간을 확보해 보세요.`,
         );
       }
     }

@@ -42,7 +42,7 @@ export default function FeedbackModal({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal title="의견 보내기" onClose={onClose} dismissible={!sending}>
-      <p className="mt-2 text-[13px] leading-relaxed text-[#6f7176]">사용하면서 불편했던 점이나 개선 의견을 적어 주세요. 개인정보는 적지 않아도 돼요.</p>
+      <p className="mt-2 text-[13px] leading-relaxed text-[#6f7176]">사용하면서 불편했던 점이나 개선 의견을 적어 주세요.</p>
       <form
         onSubmit={(e) => {
           e.preventDefault();

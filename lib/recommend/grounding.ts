@@ -35,7 +35,7 @@ export function buildFacts(input: {
   const times = new Set<string>();
   const durations = new Set<string>();
   if (input.currentTime) times.add(input.currentTime);
-  // 규모 옵션 라벨(30분 이내, 1시간 내외, 2시간 이상)에 나오는 숫자는 허용
+  // 규모 옵션 라벨(1시간 이내, 1~2시간, 2시간 초과)에 나오는 숫자는 허용
   for (const o of EFFORT_OPTIONS) for (const m of o.label.matchAll(/(\d+)\s*(분|시간)/g)) durations.add(`${m[1]}${m[2]}`);
   addDuration(durations, input.availableMinutes);
   for (const t of input.tasks) {

@@ -27,6 +27,8 @@ export default function RecordChart({
   const period = buildPeriod(tasks, mode, anchor, offset);
   const picked = pickedKey ? period.bars.findIndex((b) => b.key === pickedKey) : -1;
   const idx = picked >= 0 ? picked : defaultBarIndex(period.bars);
+  // 주간: 좌우 여백 안쪽을 7개 동일한 슬롯으로 나누고 막대·라벨을 각 슬롯 중앙에 둔다(막대 사이 간격 동일, 양끝 말풍선 여백 확보)
+  const slots = mode === "week";
   const sel = idx >= 0 ? period.bars[idx] : null;
 
   const change = (m: RecordMode, o: number) => {
@@ -89,7 +91,7 @@ export default function RecordChart({
 
       {period.hasRecords ? (
         <>
-          <div ref={group} role="group" aria-label="완료율 막대그래프" onKeyDown={onKey} className="mt-[54px] flex h-[174px] items-end gap-2.5 border-b border-[#e9e9eb] min-[461px]:h-[196px]">
+          <div ref={group} role="group" aria-label="완료율 막대그래프" onKeyDown={onKey} className={`mt-[54px] flex h-[174px] items-end border-b border-[#e9e9eb] min-[461px]:h-[196px] ${slots ? "px-2" : "gap-2.5"}`}>
             {period.bars.map((b, i) => {
               const h = b.pct === null ? "2px" : b.pct === 0 ? "6px" : `${b.pct}%`;
               return (
@@ -103,14 +105,14 @@ export default function RecordChart({
                   className="relative flex h-full min-w-0 flex-1 items-end justify-center"
                 >
                   <span
-                    className={`block w-full rounded-t-[10px] transition-[height,background] duration-200 ${mode === "month" ? "max-w-[69px]" : "max-w-[48px]"} ${
+                    className={`block rounded-t-[10px] transition-[height,background] duration-200 ${slots ? "w-[calc(100%-12.3px)] max-w-[42px]" : "w-full max-w-[69px]"} ${
                       b.pct === null ? "rounded-none bg-[#ececee]" : idx === i ? "bg-primary" : "bg-bar"
                     }`}
                     style={{ height: h }}
                   />
                   {idx === i && b.pct !== null && (
                     <span
-                      className="absolute left-1/2 z-[1] flex h-8 w-16 -translate-x-1/2 items-center justify-center rounded-[9px] border border-[#f0d6d8] bg-white text-[13px] font-extrabold text-primary shadow-[0_2px_6px_rgba(0,0,0,0.07)] after:absolute after:-bottom-[6px] after:left-1/2 after:h-[9px] after:w-[9px] after:-translate-x-1/2 after:rotate-45 after:border-b after:border-r after:border-[#f0d6d8] after:bg-white after:content-['']"
+                      className="absolute left-1/2 z-[1] flex h-8 w-[58px] -translate-x-1/2 items-center justify-center rounded-[9px] border border-[#f0d6d8] bg-white text-[13px] font-extrabold text-primary shadow-[0_2px_6px_rgba(0,0,0,0.07)] after:absolute after:-bottom-[6px] after:left-1/2 after:h-[9px] after:w-[9px] after:-translate-x-1/2 after:rotate-45 after:border-b after:border-r after:border-[#f0d6d8] after:bg-white after:content-['']"
                       style={{ bottom: `calc(${h} + 11px)` }}
                       aria-hidden
                     >
@@ -121,7 +123,7 @@ export default function RecordChart({
               );
             })}
           </div>
-          <div className="mt-[7px] flex gap-2.5" aria-hidden>
+          <div className={`mt-[7px] flex ${slots ? "px-2" : "gap-2.5"}`} aria-hidden>
             {period.bars.map((b, i) => (
               <span key={b.key} className={`flex-1 whitespace-nowrap text-center text-xs ${idx === i ? "font-extrabold text-primary" : "text-[#7b7c82]"}`}>
                 {b.label}

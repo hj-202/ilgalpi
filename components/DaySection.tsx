@@ -7,7 +7,7 @@ import { addDays, formatMonthDay } from "@/lib/date";
 import type { Project, Task } from "@/lib/types";
 import QuickAdd from "./QuickAdd";
 import TaskItem from "./TaskItem";
-import { ChevronIcon, EmptyState, ProgressBar } from "./ui";
+import { ChevronIcon, EmptyState, ProgressBar, ProgressCount } from "./ui";
 
 export function focusQuickAdd() {
   requestAnimationFrame(() => {
@@ -53,8 +53,13 @@ export default function DaySection({
   const total = dayTasks.length;
   const incompleteIds = dayTasks.filter((t) => !t.isCompleted).map((t) => t.id);
   const nextDay = addDays(selected, 1);
+  // 선택 개수는 미완료 작업만 센다
+  const pickedCount = incompleteIds.filter((id) => picked.has(id)).length;
   const move = (target: string) => {
-    carryOverTasks([...picked], target);
+    // 완료된 작업은 이동 대상이 아니다(방어: 선택 후 완료 처리된 항목 제외)
+    const ids = [...picked].filter((id) => incompleteIds.includes(id));
+    if (ids.length === 0) return;
+    carryOverTasks(ids, target);
     setPicked(new Set());
     setCarrying(false);
   };
@@ -69,9 +74,7 @@ export default function DaySection({
           </h2>
           <span className="text-[13px] text-subtle">
             {total > 0 ? (
-              <>
-                {done}/{total} 완료
-              </>
+              <ProgressCount done={done} total={total} />
             ) : (
               "아직 할 일이 없어요"
             )}
@@ -125,29 +128,29 @@ export default function DaySection({
             {carrying && (
               <button
                 type="button"
-                onClick={() => setPicked(picked.size === incompleteIds.length ? new Set() : new Set(incompleteIds))}
+                onClick={() => setPicked(pickedCount === incompleteIds.length ? new Set() : new Set(incompleteIds))}
                 className="min-h-[40px] px-1 text-[#707277]"
               >
-                {picked.size === incompleteIds.length ? "선택 해제" : "모두 선택"}
+                {pickedCount === incompleteIds.length ? "선택 해제" : "모두 선택"}
               </button>
             )}
           </div>
         )}
         {carrying && (
           <div role="group" aria-label="옮길 날짜" className="mt-1 flex flex-wrap items-center gap-2 rounded-xl border border-line p-3">
-            <span className="mr-1 text-sm">{picked.size > 0 ? `${picked.size}개 선택` : "옮길 작업을 선택해 주세요"}</span>
+            <span className="mr-1 text-sm">{pickedCount > 0 ? `${pickedCount}개 선택` : "옮길 작업을 선택해 주세요"}</span>
             <button
               type="button"
-              disabled={picked.size === 0}
+              disabled={pickedCount === 0}
               onClick={() => move(nextDay)}
               className="min-h-[38px] rounded-full bg-selected px-3.5 text-[13px] text-white disabled:opacity-30"
             >
-              {formatMonthDay(nextDay)}로 이동
+              내일로 이동
             </button>
             {selected !== today && (
               <button
                 type="button"
-                disabled={picked.size === 0}
+                disabled={pickedCount === 0}
                 onClick={() => move(today)}
                 className="min-h-[38px] rounded-full border border-line px-3.5 text-[13px] disabled:opacity-30"
               >
