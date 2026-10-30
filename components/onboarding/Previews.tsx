@@ -1,7 +1,7 @@
 import { EFFORT_LABEL, IMPORTANCE_LABEL } from "@/lib/constants";
 import { RankCircle, TypeBadge } from "../RecommendSection";
 import { CheckCircle } from "../TaskItem";
-import { Chip, ProgressBar, Stamp } from "../ui";
+import { Chip, ProgressBar, ProgressCount, Stamp } from "../ui";
 
 /*
  * 온보딩 1~4의 시각화 영역. 실제 홈·추천 결과·내 기록 화면의 컴포넌트와 스타일을 그대로 쓰는 정적 미리보기다.
@@ -100,11 +100,11 @@ export function RecordPreview() {
     <Frame>
       <div className="grid grid-cols-7 text-center">
         {days.map((d, i) => (
-          <div key={WEEK[i]} className="flex flex-col items-center gap-1">
+          <div key={WEEK[i]} className="flex flex-col items-center gap-1.5">
             <span className="text-xs text-[#85878d]">{WEEK[i]}</span>
             <span className={`grid h-7 w-7 place-items-center rounded-full text-[14px] ${i === 4 ? "bg-primary font-bold text-white" : "text-ink"}`}>{21 + i}</span>
             <span className="grid h-[18px] place-items-center">
-              {d && d[0] === d[1] ? <Stamp size={18} label={null} /> : d ? <span className="text-xs leading-[18px] text-subtle">{d[0]}/{d[1]}</span> : null}
+              {d && d[0] === d[1] ? <Stamp size={16} label={null} /> : d ? <span className="text-xs leading-[18px] text-subtle">{d[0]}/{d[1]}</span> : null}
             </span>
           </div>
         ))}
@@ -112,7 +112,9 @@ export function RecordPreview() {
       <div className="mt-3 border-t border-[#f0f0f1] pt-3">
         <div className="flex items-center justify-between">
           <span className="text-lg font-extrabold tracking-tight">오늘의 실행 기록</span>
-          <span className="text-[13px] text-subtle">4/4 완료</span>
+          <span className="text-[13px] text-subtle">
+            <ProgressCount done={4} total={4} />
+          </span>
         </div>
         <div className="mt-2.5">
           <ProgressBar done={4} total={4} />
@@ -142,7 +144,7 @@ export function StatsPreview() {
         <Metric value="18개" label="완료한 일" />
         <Metric value="3일" label="모두 완료한 날" />
       </div>
-      <div className="mt-3 flex h-[84px] items-end gap-2.5 border-b border-[#e9e9eb]">
+      <div className="mt-6 flex h-[84px] items-end gap-2.5 border-b border-[#e9e9eb]">
         {bars.map((pct, i) => (
           <span key={WEEK[i]} className="flex h-full min-w-0 flex-1 items-end justify-center">
             <span
