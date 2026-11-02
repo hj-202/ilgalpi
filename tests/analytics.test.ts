@@ -407,3 +407,19 @@ describe("analytics — 인증 확인 중 이벤트 보류", () => {
     expect(events.map((e) => [e.distinct_id, e.user_type])).toEqual([["$device:anon2", "guest"]]);
   });
 });
+
+describe("GeoIP 설정", () => {
+  it("IP 기반 지역 추정을 끄지 않고, 위치·IP 속성을 따로 보내지 않는다", async () => {
+    mp.init.mockClear();
+    const a = await loadAnalytics("tok");
+    a.resetIdentity();
+    a.track("Task Created");
+    await flush();
+    const opts = mp.init.mock.calls[0][1];
+    expect(opts.ip).toBe(true);
+    expect(opts.autocapture).toBe(false);
+    expect(opts.record_sessions_percent).toBe(0);
+    const sent = JSON.stringify([...mp.register.mock.calls, ...mp.track.mock.calls, ...people.set.mock.calls]);
+    expect(sent).not.toMatch(/\$?(ip|city|region|country|latitude|longitude)\b/i);
+  });
+});

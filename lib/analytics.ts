@@ -3,6 +3,7 @@
  * - 토큰(NEXT_PUBLIC_MIXPANEL_TOKEN)이 없거나 로딩·전송이 실패해도 앱은 그대로 동작한다(모든 호출은 조용히 무시).
  * - 자동 클릭 수집·세션 녹화·자동 페이지뷰는 끄고, 아래 정의된 이벤트만 직접 보낸다.
  * - 할 일 제목·의견 본문·이름·정확한 마감일/시각 등 자유 입력값은 이벤트 속성으로 보내지 않는다(속성은 아래 타입의 열거값·개수뿐).
+ * - 대략적 지역(City/Region/Country)은 Mixpanel의 IP 기반 GeoIP로만 얻는다(`ip: true`). 위치 권한·좌표는 쓰지 않고 IP 원문은 속성에 넣지 않는다.
  * - 이메일은 로그인 사용자의 Mixpanel 사용자 프로필(`$email`)에만 등록한다. distinct_id나 이벤트 속성에는 쓰지 않는다.
  */
 import type { Mixpanel } from "mixpanel-browser";
@@ -46,7 +47,8 @@ function load(): Promise<Mixpanel | null> {
         track_pageview: false,
         record_sessions_percent: 0,
         persistence: "localStorage",
-        ip: false,
+        // Mixpanel 서버가 요청 IP로 City/Region/Country(GeoIP)만 추정한다. IP 원문은 이벤트·프로필 속성으로 보내거나 저장하지 않으며, 위치 권한·좌표도 쓰지 않는다
+        ip: true,
       });
       // 이전 방문에서 식별된 상태가 남아 있으면 account, 아니면 guest. 인증 확인 후 identifyUser/resetIdentity가 바로잡는다
       mixpanel.register({ environment: process.env.NODE_ENV, user_type: identifiedUserId(mixpanel) ? "account" : "guest" });
