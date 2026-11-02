@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { addDays, addMonths, formatYearMonth, monthGrid, WEEKDAY_SHORT_MON_FIRST, weekDays } from "@/lib/date";
+import { addDays, addMonths, formatYearMonth, monthGrid, WEEKDAY_SHORT_SUN_FIRST, weekDays } from "@/lib/date";
 import { computeDayStats, type DayStat } from "@/lib/stats";
 import type { Task } from "@/lib/types";
 import { ChevronIcon, Stamp } from "./ui";
@@ -133,7 +133,7 @@ export default function Calendar({
 
       <div className="touch-pan-y" onTouchStart={(e) => (touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY })} onTouchEnd={onTouchEnd}>
         <div className="mb-1.5 grid grid-cols-7 gap-[3px] text-center text-xs text-[#85878d]">
-          {WEEKDAY_SHORT_MON_FIRST.map((w) => (
+          {WEEKDAY_SHORT_SUN_FIRST.map((w) => (
             <span key={w}>{w}</span>
           ))}
         </div>

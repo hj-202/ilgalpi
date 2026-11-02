@@ -1,7 +1,7 @@
 const DAY_MS = 86_400_000;
 const YMD = /^(\d{4})-(\d{2})-(\d{2})$/;
 const HM = /^([01]\d|2[0-3]):([0-5]\d)$/;
-const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+export const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
 function pad(n: number) {
   return String(n).padStart(2, "0");
@@ -62,9 +62,9 @@ export function weekdayIndex(ymd: string): number {
   return new Date(toUtc(ymd)).getUTCDay();
 }
 
-/** 월요일 시작 주의 첫날 */
+/** 일요일 시작 주의 첫날 */
 export function weekStart(ymd: string): string {
-  return addDays(ymd, -((weekdayIndex(ymd) + 6) % 7));
+  return addDays(ymd, -weekdayIndex(ymd));
 }
 
 export function weekDays(ymd: string): string[] {
@@ -81,12 +81,12 @@ export function addMonths(ymd: string, n: number): string {
   return `${ny}-${pad(nm + 1)}-${pad(Math.min(d, last))}`;
 }
 
-/** 월간 그리드: 월요일 시작, 해당 월 밖은 null */
+/** 월간 그리드: 일요일 시작, 해당 월 밖은 null */
 export function monthGrid(ymd: string): Array<Array<string | null>> {
   const [y, m] = ymd.split("-").map(Number);
   const first = `${y}-${pad(m)}-01`;
   const count = new Date(Date.UTC(y, m, 0)).getUTCDate();
-  const lead = (weekdayIndex(first) + 6) % 7;
+  const lead = weekdayIndex(first);
   const cells: Array<string | null> = [
     ...Array<null>(lead).fill(null),
     ...Array.from({ length: count }, (_, i) => `${y}-${pad(m)}-${pad(i + 1)}`),
@@ -95,7 +95,7 @@ export function monthGrid(ymd: string): Array<Array<string | null>> {
   return Array.from({ length: cells.length / 7 }, (_, i) => cells.slice(i * 7, i * 7 + 7));
 }
 
-export const WEEKDAY_SHORT_MON_FIRST = ["월", "화", "수", "목", "금", "토", "일"];
+export const WEEKDAY_SHORT_SUN_FIRST = WEEKDAYS;
 
 /** "2026년 10월" */
 export function formatYearMonth(ymd: string): string {

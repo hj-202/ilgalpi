@@ -1,4 +1,4 @@
-import { addDays, addMonths, weekDays, weekStart } from "./date";
+import { addDays, addMonths, WEEKDAYS, weekDays, weekStart } from "./date";
 import type { Task } from "./types";
 
 export interface DayStat {
@@ -69,8 +69,6 @@ function sumRange(stats: Map<string, DayStat>, from: string, to: string) {
   return { total, done, daily, full };
 }
 
-const WEEK_LABELS = ["월", "화", "수", "목", "금", "토", "일"];
-
 /**
  * 내 기록의 조회 기간 계산. offset은 기준일(anchor)이 속한 주/월에서의 이동량.
  * 집계 기준은 계획일(plannedDate). 평균 완료율 = 할 일이 있는 날들의 일별 완료율 산술평균.
@@ -92,7 +90,7 @@ export function buildPeriod(tasks: Task[], mode: RecordMode, anchor: string, off
     heading = `${f[1]}월 ${f[2]}일 ~ ${t[1]}월 ${t[2]}일`;
     bars = days.map((d, i) => {
       const s = stats.get(d) ?? { total: 0, done: 0 };
-      return { key: d, label: WEEK_LABELS[i], from: d, to: d, ...s, pct: pct(s) };
+      return { key: d, label: WEEKDAYS[i], from: d, to: d, ...s, pct: pct(s) };
     });
   } else {
     const first = `${addMonths(`${anchor.slice(0, 7)}-01`, offset)}`;

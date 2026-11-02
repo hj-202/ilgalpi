@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { addMonths, daysBetween, formatDotDate, formatKoreanTime, formatYearMonth, monthGrid, WEEKDAY_SHORT_MON_FIRST } from "@/lib/date";
+import { addMonths, daysBetween, formatDotDate, formatKoreanTime, formatYearMonth, monthGrid, WEEKDAY_SHORT_SUN_FIRST } from "@/lib/date";
 import { AMPM, HOURS, MINUTES, parseHm, Wheel } from "./TimeWheels";
 import { ChevronIcon, CloseIcon, PrimaryButton } from "./ui";
 
@@ -110,7 +110,7 @@ export default function DueSheet({
                   </button>
                 </div>
                 <div className="mt-1 grid grid-cols-7 text-center text-xs text-[#85878d]" aria-hidden>
-                  {WEEKDAY_SHORT_MON_FIRST.map((w) => (
+                  {WEEKDAY_SHORT_SUN_FIRST.map((w) => (
                     <span key={w} className="py-1">
                       {w}
                     </span>

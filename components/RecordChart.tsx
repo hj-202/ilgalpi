@@ -2,11 +2,12 @@
 
 import { useRef, useState } from "react";
 import { track } from "@/lib/analytics";
+import { WEEKDAYS } from "@/lib/date";
 import { buildPeriod, defaultBarIndex, type RecordMode } from "@/lib/stats";
 import type { Task } from "@/lib/types";
 import { ChevronIcon, EmptyState } from "./ui";
 
-const WEEKDAY_FULL = ["월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일"];
+const WEEKDAY_FULL = WEEKDAYS.map((w) => `${w}요일`);
 
 /** 주간/월간 완료율 막대그래프 `얼마나 해냈을까?` — 선택 막대·말풍선·하단 상세 */
 export default function RecordChart({
