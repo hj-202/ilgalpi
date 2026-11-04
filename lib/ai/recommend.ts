@@ -17,8 +17,8 @@ export interface AiOptions {
 }
 
 export type AiOutcome =
-  | { ok: true; recommendation: RecommendationResult; attempts: number; model: string }
-  | { ok: false; code: RecommendErrorCode; detail: string; attempts: number };
+  | { ok: true; recommendation: RecommendationResult; attempts: number; model: string; trail: string[] }
+  | { ok: false; code: RecommendErrorCode; detail: string; attempts: number; trail: string[] };
 
 const MIN_RETRY_MS = 5_000;
 
@@ -72,6 +72,8 @@ export async function runAiRecommendation(req: RecommendRequest, opts: AiOptions
   const started = Date.now();
   let prompt = buildUserPrompt(input);
   let lastDetail = "";
+  // 시도별 결과 기록(모델:결과). 로그 전용이며 호출 순서·타임아웃에는 영향을 주지 않는다. 작업 내용은 담지 않는다.
+  const trail: string[] = [];
 
   let modelIdx = 0;
   let formatTries = 0;
@@ -86,6 +88,7 @@ export async function runAiRecommendation(req: RecommendRequest, opts: AiOptions
       timeoutMs: Math.min(opts.timeoutMs, remaining),
     });
     if (!res.ok) {
+      trail.push(`${model}:${res.code}`);
       if (res.code !== "AI_INVALID_RESPONSE") {
         // 과부하·타임아웃·한도·모델 오류는 다음 모델로 넘어간다. 인증 오류 등은 즉시 종료.
         firstFailure ??= { code: res.code, detail: res.detail };
@@ -94,7 +97,7 @@ export async function runAiRecommendation(req: RecommendRequest, opts: AiOptions
           modelIdx++;
           continue;
         }
-        return { ok: false, ...(transient && firstFailure ? firstFailure : { code: res.code, detail: res.detail }), attempts: n };
+        return { ok: false, ...(transient && firstFailure ? firstFailure : { code: res.code, detail: res.detail }), attempts: n, trail };
       }
       lastDetail = res.detail;
       prompt = buildUserPrompt(input);
@@ -105,22 +108,24 @@ export async function runAiRecommendation(req: RecommendRequest, opts: AiOptions
         parsed = JSON.parse(res.text);
         const outcome = validateRecommendation(parsed, ctx);
         if (outcome.valid) {
-          return { ok: true, recommendation: restoreIds(outcome.result, toOrig), attempts: n, model };
+          trail.push(`${model}:ok`);
+          return { ok: true, recommendation: restoreIds(outcome.result, toOrig), attempts: n, model, trail };
         }
         violations = outcome.violations;
       } catch {
         violations = ["응답이 올바른 JSON이 아닙니다."];
       }
+      trail.push(`${model}:AI_INVALID_RESPONSE`);
       lastDetail = violations.join(" / ");
       prompt = buildRetryPrompt(input, res.text.slice(0, 8000), violations);
     }
 
     formatTries++;
     if (formatTries >= 2 || opts.budgetMs - (Date.now() - started) < MIN_RETRY_MS) {
-      return { ok: false, code: "AI_INVALID_RESPONSE", detail: lastDetail, attempts: n };
+      return { ok: false, code: "AI_INVALID_RESPONSE", detail: lastDetail, attempts: n, trail };
     }
   }
-  return { ok: false, code: "AI_INVALID_RESPONSE", detail: lastDetail, attempts: formatTries };
+  return { ok: false, code: "AI_INVALID_RESPONSE", detail: lastDetail, attempts: formatTries, trail };
 }
 
 function restoreIds(result: RecommendationResult, toOrig: Map<string, string>): RecommendationResult {

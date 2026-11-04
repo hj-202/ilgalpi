@@ -423,3 +423,14 @@ describe("GeoIP 설정", () => {
     expect(sent).not.toMatch(/\$?(ip|city|region|country|latitude|longitude)\b/i);
   });
 });
+
+describe("Recommendation Completed 이벤트", () => {
+  it("요청 1건의 결과를 열거값·숫자 속성만으로 보낸다", async () => {
+    const a = await loadAnalytics("tok");
+    a.resetIdentity();
+    await flush();
+    a.track("Recommendation Completed", { outcome: "fallback", duration_ms: 15900, is_retry: false, error_code: "AI_TIMEOUT" });
+    await flush();
+    expect(mp.track).toHaveBeenCalledWith("Recommendation Completed", { outcome: "fallback", duration_ms: 15900, is_retry: false, error_code: "AI_TIMEOUT" });
+  });
+});

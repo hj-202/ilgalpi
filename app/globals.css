@@ -49,6 +49,49 @@ body {
   outline-offset: 2px;
 }
 
+/* 추천 로딩: 트랙과 시작점(12시)은 고정이고 레드 라인의 끝만 시계 방향으로 이동해 차오른다. 실제 진행률이 아니다.
+   가득 찬 뒤 투명하게 사라지고, 보이지 않는 동안 처음 상태로 돌아가 반복하므로 초기화가 눈에 띄지 않는다 */
+.rec-ring-arc {
+  stroke-dasharray: 100 100;
+  stroke-dashoffset: 100;
+  opacity: 0;
+  animation:
+    rec-fill 3.8s ease-in-out infinite,
+    rec-fade 3.8s linear infinite;
+}
+@keyframes rec-fill {
+  0% {
+    stroke-dashoffset: 100;
+  }
+  88%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes rec-fade {
+  0% {
+    opacity: 0;
+  }
+  6% {
+    opacity: 1;
+  }
+  92% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 움직임을 줄인 환경: 애니메이션 대신 3/4가 채워진 고정 라인 */
+  .rec-ring-arc {
+    animation: none !important;
+    stroke-dashoffset: 25;
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

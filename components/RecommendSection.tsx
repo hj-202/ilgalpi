@@ -46,7 +46,6 @@ export function RecommendResult({
   today,
   nowTime,
   notice,
-  loading,
   onBack,
   onRetry,
 }: {
@@ -58,7 +57,6 @@ export function RecommendResult({
   today: string;
   nowTime: string;
   notice: PanelNotice | null;
-  loading: boolean;
   onBack: () => void;
   onRetry: () => void;
 }) {
@@ -115,10 +113,7 @@ export function RecommendResult({
         </div>
       )}
 
-      <div aria-live="polite">
-        {loading && <p className="mb-2 text-sm text-subtle">할 일을 비교하고 있어요.</p>}
-      </div>
-      {notice && !loading && (
+      {notice && (
         <div role={notice.kind === "error" ? "alert" : "status"} className="mb-2.5 flex items-start justify-between gap-2 rounded-[10px] bg-[#fff1f2] px-3 py-2.5 text-xs text-[#bc434b]">
           <p className="leading-relaxed">{notice.message}</p>
           {notice.canRetry && (
@@ -129,7 +124,7 @@ export function RecommendResult({
         </div>
       )}
 
-      <div className={`rounded-[18px] border border-rec-line bg-rec-bg px-[15px] pb-3.5 pt-3 ${loading ? "opacity-60" : ""}`}>
+      <div className="rounded-[18px] border border-rec-line bg-rec-bg px-[15px] pb-3.5 pt-3">
         {stale && (
           <p role="status" className="mb-1 rounded-[10px] bg-[#fff1f2] px-3 py-2.5 text-xs text-[#bc434b]">
             할 일이나 조건이 변경됐어요. 최신 우선순위를 확인하려면 다시 추천받아 주세요.
@@ -236,8 +231,7 @@ export function RecommendCta({
         aria-busy={loading}
         className="mt-[17px] flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[13px] text-[15px] font-extrabold"
       >
-        {loading && <span aria-hidden className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
-        {loading ? "분석 중..." : hasRec ? "다시 추천받기 ↻" : "우선순위 추천받기 →"}
+        {loading ? "분석 중" : hasRec ? "다시 추천받기 ↻" : "우선순위 추천받기 →"}
       </PrimaryButton>
       {incompleteCount < 2 && (
         <p className="mt-2 text-center text-[13px] text-[#76777c]">
@@ -249,9 +243,6 @@ export function RecommendCta({
           AI 분석은 한 번에 최대 30개까지 가능해요. 완료했거나 필요 없는 작업을 정리해 주세요. (현재 {incompleteCount}개)
         </p>
       )}
-      <div aria-live="polite">
-        {loading && !hasRec && <p className="mt-3 text-center text-sm text-subtle">할 일을 비교하고 있어요.</p>}
-      </div>
       {showNotice && notice && !loading && (
         <div role={notice.kind === "error" ? "alert" : "status"} className="mt-3 flex items-start justify-between gap-2 rounded-[10px] bg-[#fff1f2] px-3 py-2.5 text-xs text-[#bc434b]">
           <p className="leading-relaxed">{notice.message}</p>

@@ -18,6 +18,20 @@ interface EventMap {
   "Entry Completed": { entry_method: "google" | "guest" };
   "Task Created": Record<string, never>;
   "Recommendation Requested": { task_count: number; is_retry: boolean };
+  /**
+   * 추천 요청 1건의 최종 결과(요청 1건당 정확히 1번). 집계 기준:
+   * - Requested = 버튼 누름, Completed = 그 요청의 결과(ai 성공 / fallback 전환 / error 안내), Viewed = 결과 화면 표시(저장된 결과 다시 보기 포함).
+   * - 성공·전환 건수는 Completed의 outcome으로 센다. Viewed와 합산하지 않는다.
+   * error_code·model은 열거값, duration_ms는 요청~결과까지 걸린 시간이다(할 일 내용은 보내지 않는다).
+   */
+  "Recommendation Completed": {
+    outcome: "ai" | "fallback" | "error";
+    duration_ms: number;
+    is_retry: boolean;
+    error_code?: string;
+    model?: string;
+    attempts?: number;
+  };
   "Recommendation Viewed": { recommendation_type: "ai" | "basic"; result_source: "new" | "saved" };
   "Task Completed": { source: "home" | "recommendation" };
   "Task Updated": { field_type: FieldType };
