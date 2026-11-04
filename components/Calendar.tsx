@@ -22,14 +22,12 @@ function DayCell({
   selected,
   today,
   stat,
-  compact,
   onSelect,
 }: {
   ymd: string;
   selected: boolean;
   today: string;
   stat: DayStat | undefined;
-  compact: boolean;
   onSelect: (ymd: string) => void;
 }) {
   const day = Number(ymd.slice(8));
@@ -41,10 +39,10 @@ function DayCell({
       onClick={() => onSelect(ymd)}
       aria-pressed={selected}
       aria-label={`${ymd.replaceAll("-", ".")}${isToday ? " 오늘" : ""}, ${summary}`}
-      className={`flex w-full flex-col items-center justify-start gap-0.5 rounded-xl py-px ${compact ? "min-h-[52px]" : "min-h-[56px]"}`}
+      className="flex min-h-[52px] w-full flex-col items-center justify-start gap-0.5 rounded-xl py-px"
     >
       <span
-        className={`flex items-center justify-center rounded-full text-sm ${compact ? "h-[26px] w-[26px]" : "h-[30px] w-[30px]"} ${
+        className={`flex items-center justify-center rounded-full text-sm h-[28px] w-[28px] ${
           selected ? "bg-primary font-semibold text-white" : isToday ? "font-extrabold text-ink" : "font-medium text-ink"
         }`}
       >
@@ -141,7 +139,7 @@ export default function Calendar({
         {mode === "week" ? (
           <div className="grid grid-cols-7 gap-[3px]">
             {weekDays(anchor).map((ymd) => (
-              <DayCell key={ymd} ymd={ymd} selected={ymd === selected} today={today} stat={stats.get(ymd)} compact={false} onSelect={onSelect} />
+              <DayCell key={ymd} ymd={ymd} selected={ymd === selected} today={today} stat={stats.get(ymd)} onSelect={onSelect} />
             ))}
           </div>
         ) : (
@@ -150,7 +148,7 @@ export default function Calendar({
               <div key={i} className="grid grid-cols-7 gap-[3px]">
                 {week.map((ymd, j) =>
                   ymd ? (
-                    <DayCell key={ymd} ymd={ymd} selected={ymd === selected} today={today} stat={stats.get(ymd)} compact onSelect={onSelect} />
+                    <DayCell key={ymd} ymd={ymd} selected={ymd === selected} today={today} stat={stats.get(ymd)} onSelect={onSelect} />
                   ) : (
                     <span key={`e${j}`} />
                   ),
