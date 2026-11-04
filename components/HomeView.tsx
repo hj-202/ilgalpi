@@ -69,7 +69,7 @@ export default function HomeView({
   }, [showingRec]);
 
   /** 조건 기반 추천을 만들어 저장한다. 만들지 못하면 false */
-  const storeBasic = (reason: string, excludedCompletedCount: number, show: boolean): boolean => {
+  const storeBasic = (excludedCompletedCount: number, show: boolean): boolean => {
     try {
       const result = basicRecommend({
         tasks: incomplete,
@@ -83,10 +83,8 @@ export default function HomeView({
       return false;
     }
     track("Recommendation Viewed", { recommendation_type: "basic", result_source: "new" });
-    if (show) {
-      setNotice({ kind: "fallback", message: `${reason} 조건 기반 추천으로 순서를 정리했어요.`, canRetry: true });
-      setViewRec(true);
-    }
+    // 조건 기반 추천이 정상 제공되면 오류 배너는 띄우지 않는다('기본 추천' 배지가 방식을 알려 준다)
+    if (show) setViewRec(true);
     return true;
   };
 
@@ -152,7 +150,7 @@ export default function HomeView({
       // 입력 오류이거나, 최신 결과가 이미 있어 오류만으로 대체하거나 지우지 않는 경우
       track("Recommendation Completed", { outcome: "error", duration_ms, is_retry: isRetry, error_code: failure });
       showError(info.message, info.canRetry);
-    } else if (storeBasic(info.message, excludedCompletedCount, show)) {
+    } else if (storeBasic(excludedCompletedCount, show)) {
       track("Recommendation Completed", { outcome: "fallback", duration_ms, is_retry: isRetry, error_code: failure });
     } else {
       // 조건 기반 추천까지 만들지 못한 최종 실패: 오류 안내와 재시도를 제공한다

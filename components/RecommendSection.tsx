@@ -6,7 +6,7 @@ import { CompleteCheck, ConditionChips } from "./TaskItem";
 import { ChevronIcon, EmptyState, InfoIcon, PrimaryButton, ProgressBar, ProgressCount } from "./ui";
 
 export interface PanelNotice {
-  kind: "error" | "fallback";
+  kind: "error";
   message: string;
   canRetry: boolean;
 }
