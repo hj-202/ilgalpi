@@ -1,12 +1,23 @@
 import { SYSTEM_PROMPT } from "./prompt";
 import { RESPONSE_SCHEMA } from "./schema";
 
+/** 응답의 usageMetadata에서 읽은 토큰 수(숫자만). 비용·지연 분석용이며 내용은 담지 않는다. */
+export interface TokenUsage {
+  promptTokens?: number;
+  outputTokens?: number;
+  thoughtsTokens?: number;
+  totalTokens?: number;
+}
+
 export type GeminiResult =
-  | { ok: true; text: string }
+  | { ok: true; text: string; usage?: TokenUsage }
   | {
       ok: false;
       code: "AI_TIMEOUT" | "AI_RATE_LIMITED" | "AI_UPSTREAM_ERROR" | "AI_INVALID_RESPONSE" | "AI_AUTH_ERROR" | "AI_MODEL_ERROR";
       detail: string;
+      /** Gemini가 응답한 HTTP 상태(네트워크 오류·타임아웃이면 없음) */
+      status?: number;
+      usage?: TokenUsage;
     };
 
 interface GeminiPart {
@@ -17,6 +28,21 @@ interface GeminiPart {
 interface GeminiResponse {
   candidates?: Array<{ content?: { parts?: GeminiPart[] }; finishReason?: string }>;
   promptFeedback?: { blockReason?: string };
+  usageMetadata?: { promptTokenCount?: unknown; candidatesTokenCount?: unknown; thoughtsTokenCount?: unknown; totalTokenCount?: unknown };
+}
+
+const num = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.round(v) : undefined);
+
+/** usageMetadata → 숫자만 남긴 토큰 사용량. 값이 하나도 없으면 undefined */
+export function readUsage(meta: GeminiResponse["usageMetadata"]): TokenUsage | undefined {
+  if (!meta || typeof meta !== "object") return undefined;
+  const usage: TokenUsage = {
+    promptTokens: num(meta.promptTokenCount),
+    outputTokens: num(meta.candidatesTokenCount),
+    thoughtsTokens: num(meta.thoughtsTokenCount),
+    totalTokens: num(meta.totalTokenCount),
+  };
+  return Object.values(usage).some((v) => v !== undefined) ? usage : undefined;
 }
 
 /** 응답 상태·메시지를 사용자 안내용 오류 코드로 분류한다. */
@@ -84,17 +110,18 @@ export async function callGemini(opts: {
 
   if (!res.ok) {
     const message = await readErrorMessage(res);
-    return { ok: false, code: classifyHttpError(res.status, message), detail: `HTTP ${res.status} ${message}` };
+    return { ok: false, code: classifyHttpError(res.status, message), detail: `HTTP ${res.status} ${message}`, status: res.status };
   }
 
   let data: GeminiResponse;
   try {
     data = (await res.json()) as GeminiResponse;
   } catch {
-    return { ok: false, code: "AI_INVALID_RESPONSE", detail: "response body is not JSON" };
+    return { ok: false, code: "AI_INVALID_RESPONSE", detail: "response body is not JSON", status: res.status };
   }
+  const usage = readUsage(data.usageMetadata);
   if (data.promptFeedback?.blockReason) {
-    return { ok: false, code: "AI_INVALID_RESPONSE", detail: `blocked: ${data.promptFeedback.blockReason}` };
+    return { ok: false, code: "AI_INVALID_RESPONSE", detail: `blocked: ${data.promptFeedback.blockReason}`, status: 200, usage };
   }
   const candidate = data.candidates?.[0];
   const text = (candidate?.content?.parts ?? [])
@@ -102,10 +129,10 @@ export async function callGemini(opts: {
     .map((p) => p.text)
     .join("");
   if (!text) {
-    return { ok: false, code: "AI_INVALID_RESPONSE", detail: `empty (finishReason=${candidate?.finishReason})` };
+    return { ok: false, code: "AI_INVALID_RESPONSE", detail: `empty (finishReason=${candidate?.finishReason})`, status: 200, usage };
   }
   if (candidate?.finishReason && candidate.finishReason !== "STOP") {
-    return { ok: false, code: "AI_INVALID_RESPONSE", detail: `finishReason=${candidate.finishReason}` };
+    return { ok: false, code: "AI_INVALID_RESPONSE", detail: `finishReason=${candidate.finishReason}`, status: 200, usage };
   }
-  return { ok: true, text };
+  return { ok: true, text, usage };
 }

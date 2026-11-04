@@ -117,7 +117,7 @@ describe("작업 규모(effort) 정책", () => {
     ];
     const r = run(tasks, [], 60);
     expect(r.taskRankings.map((x) => x.taskId)).toEqual(["t-미정 중요", "t-짧은 일"]);
-    expect(r.taskRankings[0].reason).toContain("마감이 가까");
+    expect(r.taskRankings[0].reason).toContain("내일까지 끝내야");
     expect(r.taskRankings[1].reason).not.toMatch(/마감이 지나/);
   });
 

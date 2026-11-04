@@ -2,9 +2,10 @@ import { EFFORT_LABEL } from "../constants";
 import { daysUntilDue, minutesUntilDue } from "../date";
 import { buildValidationContext } from "../recommend/buildRequest";
 import { buildFacts } from "../recommend/grounding";
+import { checkReasonQuality } from "../recommend/reasonQuality";
 import { validateRecommendation } from "../recommend/validate";
 import type { RecommendationResult, RecommendErrorCode, RecommendRequest } from "../types";
-import { callGemini } from "./gemini";
+import { callGemini, type TokenUsage } from "./gemini";
 import { buildRetryPrompt, buildUserPrompt } from "./prompt";
 
 export interface AiOptions {
@@ -16,9 +17,41 @@ export interface AiOptions {
   budgetMs: number;
 }
 
+/** 호출 1회의 기록. 모델·결과·HTTP 상태·소요 시간·토큰 수만 담는다(작업 내용·응답 본문 없음). */
+export interface CallRecord {
+  model: string;
+  /** "ok" 또는 오류 코드. 응답은 왔지만 검증에 실패하면 AI_INVALID_RESPONSE */
+  result: string;
+  status?: number;
+  ms: number;
+  usage?: TokenUsage;
+}
+
+/** 모든 호출의 합계와 429 발생 여부 */
+export interface CallSummary {
+  calls: CallRecord[];
+  usage?: TokenUsage;
+  rateLimited: boolean;
+}
+
 export type AiOutcome =
-  | { ok: true; recommendation: RecommendationResult; attempts: number; model: string; trail: string[] }
-  | { ok: false; code: RecommendErrorCode; detail: string; attempts: number; trail: string[] };
+  | ({ ok: true; recommendation: RecommendationResult; attempts: number; model: string; trail: string[]; quality: { duplicates: number; contradictions: number } } & CallSummary)
+  | ({ ok: false; code: RecommendErrorCode; detail: string; attempts: number; trail: string[] } & CallSummary);
+
+const SUM_KEYS = ["promptTokens", "outputTokens", "thoughtsTokens", "totalTokens"] as const;
+
+export function summarizeCalls(calls: CallRecord[]): CallSummary {
+  let usage: TokenUsage | undefined;
+  for (const c of calls) {
+    if (!c.usage) continue;
+    usage ??= {};
+    for (const k of SUM_KEYS) {
+      const v = c.usage[k];
+      if (v !== undefined) usage[k] = (usage[k] ?? 0) + v;
+    }
+  }
+  return { calls, usage, rateLimited: calls.some((c) => c.result === "AI_RATE_LIMITED" || c.status === 429) };
+}
 
 const MIN_RETRY_MS = 5_000;
 
@@ -74,6 +107,7 @@ export async function runAiRecommendation(req: RecommendRequest, opts: AiOptions
   let lastDetail = "";
   // 시도별 결과 기록(모델:결과). 로그 전용이며 호출 순서·타임아웃에는 영향을 주지 않는다. 작업 내용은 담지 않는다.
   const trail: string[] = [];
+  const calls: CallRecord[] = [];
 
   let modelIdx = 0;
   let formatTries = 0;
@@ -81,12 +115,15 @@ export async function runAiRecommendation(req: RecommendRequest, opts: AiOptions
   for (let n = 1; n <= opts.models.length + 2; n++) {
     const remaining = opts.budgetMs - (Date.now() - started);
     const model = opts.models[modelIdx];
+    const callStart = Date.now();
     const res = await callGemini({
       apiKey: opts.apiKey,
       model,
       prompt,
       timeoutMs: Math.min(opts.timeoutMs, remaining),
     });
+    const record: CallRecord = { model, result: res.ok ? "ok" : res.code, status: res.ok ? 200 : res.status, ms: Date.now() - callStart, usage: res.usage };
+    calls.push(record);
     if (!res.ok) {
       trail.push(`${model}:${res.code}`);
       if (res.code !== "AI_INVALID_RESPONSE") {
@@ -97,7 +134,7 @@ export async function runAiRecommendation(req: RecommendRequest, opts: AiOptions
           modelIdx++;
           continue;
         }
-        return { ok: false, ...(transient && firstFailure ? firstFailure : { code: res.code, detail: res.detail }), attempts: n, trail };
+        return { ok: false, ...(transient && firstFailure ? firstFailure : { code: res.code, detail: res.detail }), attempts: n, trail, ...summarizeCalls(calls) };
       }
       lastDetail = res.detail;
       prompt = buildUserPrompt(input);
@@ -109,23 +146,30 @@ export async function runAiRecommendation(req: RecommendRequest, opts: AiOptions
         const outcome = validateRecommendation(parsed, ctx);
         if (outcome.valid) {
           trail.push(`${model}:ok`);
-          return { ok: true, recommendation: restoreIds(outcome.result, toOrig), attempts: n, model, trail };
+          // 이유 문구 품질은 검사만 한다(결과는 그대로). 개수만 로그로 남는다.
+          const report = checkReasonQuality(
+            outcome.result.taskRankings,
+            input.tasks.map((t) => ({ id: t.id, dueDate: t.dueDate, dueTime: t.dueTime, daysUntilDue: t.daysUntilDue, minutesUntilDue: t.minutesUntilDue, importance: t.importance, effort: t.effort })),
+          );
+          const quality = { duplicates: report.duplicates.length, contradictions: report.contradictions.length };
+          return { ok: true, recommendation: restoreIds(outcome.result, toOrig), attempts: n, model, trail, quality, ...summarizeCalls(calls) };
         }
         violations = outcome.violations;
       } catch {
         violations = ["응답이 올바른 JSON이 아닙니다."];
       }
       trail.push(`${model}:AI_INVALID_RESPONSE`);
+      record.result = "AI_INVALID_RESPONSE"; // 응답은 왔지만 JSON·검증에 실패한 호출
       lastDetail = violations.join(" / ");
       prompt = buildRetryPrompt(input, res.text.slice(0, 8000), violations);
     }
 
     formatTries++;
     if (formatTries >= 2 || opts.budgetMs - (Date.now() - started) < MIN_RETRY_MS) {
-      return { ok: false, code: "AI_INVALID_RESPONSE", detail: lastDetail, attempts: n, trail };
+      return { ok: false, code: "AI_INVALID_RESPONSE", detail: lastDetail, attempts: n, trail, ...summarizeCalls(calls) };
     }
   }
-  return { ok: false, code: "AI_INVALID_RESPONSE", detail: lastDetail, attempts: formatTries, trail };
+  return { ok: false, code: "AI_INVALID_RESPONSE", detail: lastDetail, attempts: formatTries, trail, ...summarizeCalls(calls) };
 }
 
 function restoreIds(result: RecommendationResult, toOrig: Map<string, string>): RecommendationResult {
