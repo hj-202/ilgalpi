@@ -9,6 +9,7 @@ import { nowTimeLocal } from "@/lib/date";
 import { isRecommendationStale } from "@/lib/fingerprint";
 import { ERROR_MESSAGES } from "@/lib/messages";
 import { basicRecommend } from "@/lib/recommend/basic";
+import { executeRecommend } from "@/lib/recommend/execute";
 import { failureAction, FALLBACK_FAILED_MESSAGE } from "@/lib/recommend/failure";
 import { buildRecommendRequest, createStoredRecommendation, getActiveProjects, getIncompleteTasks } from "@/lib/recommend/buildRequest";
 import type { AppState, RecommendErrorCode, RecommendResponse } from "@/lib/types";
@@ -98,23 +99,29 @@ export default function HomeView({
     const planDate = selected;
     // 완료한 작업은 추천에서 제외된다. 제외한 개수를 추천 결과와 함께 저장해 안내 문구의 기준으로 쓴다
     const excludedCompletedCount = dayTasks.filter((t) => t.isCompleted).length;
-    const request = buildRecommendRequest({ tasks: dayTasks, projects: app.projects, availableMinutes, today, planDate, nowTime });
     setLoadingDate(planDate);
     setNotice(null);
     if (rec) setViewRec(true);
     let failure: RecommendErrorCode | null = null;
     let meta: { model: string; attempts: number } | null = null;
     try {
-      const res = await fetch("/api/recommend", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(request),
-        signal: AbortSignal.timeout(CLIENT_TIMEOUT_MS),
-      });
-      const data = (await res.json()) as RecommendResponse;
-      if (!data.ok) {
-        failure = data.error.code;
+      // 요청 생성·전송 중 어떤 예외가 나도 오류 코드로 돌려받는다(생성 실패는 INVALID_REQUEST). 아래 finally가 로딩을 푼다
+      const result = await executeRecommend(
+        () => buildRecommendRequest({ tasks: dayTasks, projects: app.projects, availableMinutes, today, planDate, nowTime }),
+        async (request) => {
+          const res = await fetch("/api/recommend", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(request),
+            signal: AbortSignal.timeout(CLIENT_TIMEOUT_MS),
+          });
+          return (await res.json()) as RecommendResponse;
+        },
+      );
+      if (!result.ok) {
+        failure = result.code;
       } else {
+        const { request, data } = result;
         meta = data.meta;
         // 분석에 실제로 사용한 입력 스냅샷으로 지문을 만든다(분석 중 수정한 작업은 stale로 표시됨)
         setRecommendation(
@@ -128,8 +135,9 @@ export default function HomeView({
         );
         track("Recommendation Viewed", { recommendation_type: "ai", result_source: "new" });
       }
-    } catch (err) {
-      failure = (err as Error)?.name === "TimeoutError" ? "AI_TIMEOUT" : "NETWORK_ERROR";
+    } catch {
+      // 결과 저장 단계의 예외(기존과 동일하게 네트워크 오류로 분류)
+      failure = "NETWORK_ERROR";
     } finally {
       inFlight.current = false;
       setLoadingDate(null);
