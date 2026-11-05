@@ -496,6 +496,9 @@ export function patchTask(id: string, patch: TaskPatch) {
     }),
   }));
   for (const field_type of fieldTypesOf(changed)) track("Task Updated", { field_type });
+  for (const condition_type of fieldTypesOf(changed)) {
+    if (condition_type === "importance" || condition_type === "effort" || condition_type === "due") track("Condition Changed", { condition_type });
+  }
 }
 
 export function deleteTask(id: string) {

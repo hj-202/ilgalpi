@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { track } from "@/lib/analytics";
 import { addTask } from "@/hooks/useAppStore";
 import { TITLE_MAX } from "@/lib/constants";
 import { PrimaryButton } from "./ui";
@@ -17,6 +18,7 @@ export default function QuickAdd({
 }) {
   const [title, setTitle] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const started = useRef(false); // 한 번의 입력 동안 Entry Started를 1회만 기록
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,6 +28,7 @@ export default function QuickAdd({
     addTask({ title: trimmed, plannedDate, projectId });
     setTitle("");
     setError(null);
+    started.current = false;
   };
 
   return (
@@ -34,7 +37,13 @@ export default function QuickAdd({
         <input
           value={title}
           onChange={(e) => {
-            setTitle(e.target.value);
+            const v = e.target.value;
+            setTitle(v);
+            if (!v.trim()) started.current = false;
+            else if (!started.current) {
+              started.current = true;
+              track("Entry Started");
+            }
             setError(null);
           }}
           placeholder={placeholder}

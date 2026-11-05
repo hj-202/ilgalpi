@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { track } from "@/lib/analytics";
 import { deleteTask, patchTask, setTaskCompleted } from "@/hooks/useAppStore";
 import { EFFORT_LABEL, EFFORT_OPTIONS, IMPORTANCE_LABEL, TITLE_MAX } from "@/lib/constants";
 import { daysBetween, formatDotDate, formatDueChip, formatKoreanTime } from "@/lib/date";
@@ -246,7 +247,10 @@ export default function TaskItem({
           <ConditionChips task={task} today={today} nowTime={nowTime} />
           <button
             type="button"
-            onClick={onToggle}
+            onClick={() => {
+              if (!open) track("Condition Settings Viewed");
+              onToggle();
+            }}
             aria-expanded={open}
             className="-mb-2 mt-0.5 inline-flex min-h-[40px] items-center gap-0.5 text-xs text-[#707277] underline underline-offset-2"
           >

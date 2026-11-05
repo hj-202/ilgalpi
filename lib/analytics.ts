@@ -9,6 +9,7 @@
 import type { Mixpanel } from "mixpanel-browser";
 
 export type PageName = "home" | "recommendation" | "records" | "history";
+export type ConditionType = "importance" | "effort" | "due";
 export type FieldType = "title" | "importance" | "effort" | "due" | "project";
 
 interface EventMap {
@@ -17,6 +18,12 @@ interface EventMap {
   "Onboarding Finished": { method: "completed" | "skipped" };
   "Entry Completed": { entry_method: "google" | "guest" };
   "Task Created": Record<string, never>;
+  /** 할 일 입력창에 입력을 시작한 시점(입력 한 번당 1회, 제출·비우기 후 다시 입력하면 다시 기록). 입력 내용은 보내지 않는다 */
+  "Entry Started": Record<string, never>;
+  /** 할 일의 조건 설정 영역을 펼친 시점(접을 때는 기록하지 않는다) */
+  "Condition Settings Viewed": Record<string, never>;
+  /** 중요도·예상 소요시간·마감일 값이 실제로 바뀐 시점(같은 값 재선택은 제외). 값 자체는 보내지 않는다 */
+  "Condition Changed": { condition_type: ConditionType };
   "Recommendation Requested": { task_count: number; is_retry: boolean };
   /**
    * 추천 요청 1건의 최종 결과(요청 1건당 정확히 1번). 집계 기준:

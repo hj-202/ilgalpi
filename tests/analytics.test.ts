@@ -165,6 +165,20 @@ describe("analytics — 속성과 중복 방지", () => {
     expect(a.fieldTypesOf(["dueDate", "dueTime", "importance"])).toEqual(["due", "importance"]);
     expect(a.fieldTypesOf(["plannedDate"])).toEqual([]);
   });
+
+  it("입력 시작·조건 설정 열람·조건 변경 이벤트는 값 없이 열거 속성만 보낸다", async () => {
+    const a = await loadAnalytics("tok");
+    a.resetIdentity();
+    a.track("Entry Started");
+    a.track("Condition Settings Viewed");
+    a.track("Condition Changed", { condition_type: "due" });
+    await flush();
+    expect(mp.track.mock.calls.map((c) => [c[0], c[1]])).toEqual([
+      ["Entry Started", undefined],
+      ["Condition Settings Viewed", undefined],
+      ["Condition Changed", { condition_type: "due" }],
+    ]);
+  });
 });
 
 describe("analytics — 사용자 식별 전환", () => {
