@@ -14,7 +14,7 @@ export interface PanelNotice {
 /** 추천 방식 구분: 실제 Gemini 호출이 성공한 결과만 'AI 추천' */
 export function TypeBadge({ type }: { type: StoredRecommendation["recommendationType"] }) {
   return type === "ai" ? (
-    <span className="rounded-full bg-selected px-2.5 py-0.5 text-xs text-white">AI 추천</span>
+    <span className="rounded-full bg-[#E9EDF2] px-2.5 py-0.5 text-xs text-[#475569]">AI 추천</span>
   ) : (
     <span className="rounded-full bg-chip px-2.5 py-0.5 text-xs text-[#65676e]">기본 추천</span>
   );
@@ -75,7 +75,7 @@ export function RecommendResult({
       <div className="mb-2.5 flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 id="rec-title" className="text-lg font-extrabold tracking-tight">
+            <h2 id="rec-title" className="text-lg font-bold tracking-tight">
               {title}
             </h2>
             {rec && <TypeBadge type={rec.recommendationType} />}

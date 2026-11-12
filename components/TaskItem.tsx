@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { track } from "@/lib/analytics";
-import { deleteTask, patchTask, setTaskCompleted } from "@/hooks/useAppStore";
-import { EFFORT_LABEL, EFFORT_OPTIONS, IMPORTANCE_LABEL, TITLE_MAX } from "@/lib/constants";
-import { daysBetween, formatDotDate, formatDueChip, formatKoreanTime } from "@/lib/date";
-import type { Importance, Project, Task } from "@/lib/types";
-import DueSheet, { CalendarIcon } from "./DueSheet";
-import { Chip, ChevronIcon, CloseIcon, OptionChip } from "./ui";
+import { carryOverTasks, deleteTask, setTaskCompleted } from "@/hooks/useAppStore";
+import { EFFORT_LABEL, IMPORTANCE_LABEL } from "@/lib/constants";
+import { formatDueChip } from "@/lib/date";
+import type { Project, Task } from "@/lib/types";
+import MoveDateSheet from "./MoveDateSheet";
+import TaskEditSheet from "./TaskEditSheet";
+import { Chip, EditFillIcon, GhostButton, Modal, MoreIcon, MoveArrowFillIcon, PrimaryButton, TrashFillIcon } from "./ui";
 
 /** 원형 체크 표시(완료 체크와 '할 일 옮기기' 선택이 같은 모양을 쓴다) */
 export function CheckCircle({ checked, disabled = false }: { checked: boolean; disabled?: boolean }) {
@@ -58,130 +59,125 @@ export function ConditionChips({
   return (
     <div className="mt-2 flex flex-wrap gap-[5px]">
       <Chip tone={tone}>{IMPORTANCE_LABEL[task.importance]}</Chip>
-      <Chip tone={tone}>{task.effort ? EFFORT_LABEL[task.effort] : "시간 미정"}</Chip>
+      <Chip tone={tone}>{task.effort ? EFFORT_LABEL[task.effort] : "소요시간 미정"}</Chip>
       {due && <Chip tone={due === "마감 지남" ? "warn" : tone}>{due}</Chip>}
     </div>
   );
 }
 
-const label = "mb-1.5 block text-xs font-semibold text-[#707277]";
-const fieldClass =
-  "w-full rounded-xl border border-[#e3e3e5] bg-white px-3 py-2.5 text-sm focus:border-selected";
+const MENU_H = 152; // 팝오버 높이(147px) + 여백
 
-function ConditionPanel({ task, projects, today }: { task: Task; projects: Project[]; today: string }) {
-  const [title, setTitle] = useState(task.title);
-  const [titleError, setTitleError] = useState<string | null>(null);
-  const [sheet, setSheet] = useState(false);
+/** 더보기(···) 팝오버: 수정하기 / 다른 날로 이동 / (구분선) / 삭제하기. 아래 공간이 부족하면 위로 연다. */
+function TaskMenu({
+  title,
+  canMove,
+  onEdit,
+  onMove,
+  onDelete,
+}: {
+  title: string;
+  /** 완료한 작업은 기존 '할 일 옮기기'처럼 원래 날짜에 남기므로 이동할 수 없다 */
+  canMove: boolean;
+  onEdit: () => void;
+  onMove: () => void;
+  onDelete: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [up, setUp] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
 
-  const saveTitle = () => {
-    const trimmed = title.trim();
-    if (!trimmed || trimmed.length > TITLE_MAX) {
-      setTitleError(!trimmed ? "할 일을 입력해 주세요" : `${TITLE_MAX}자 이내로 입력해 주세요`);
-      return;
-    }
-    setTitleError(null);
-    if (trimmed !== task.title) patchTask(task.id, { title: trimmed });
+  // 위·아래 가용 공간(하단 고정 탭바 위쪽까지)을 재서 방향을 정한다. 열려 있는 동안 스크롤·화면 크기 변경에도 다시 잰다.
+  const place = useCallback(() => {
+    const r = wrap.current?.getBoundingClientRect();
+    if (!r) return;
+    const nav = document.querySelector("nav[aria-label='주요 화면']");
+    const bottomLimit = Math.min(window.innerHeight, nav ? nav.getBoundingClientRect().top : window.innerHeight) - 8;
+    const below = bottomLimit - r.bottom;
+    const above = r.top - 8;
+    if (r.bottom <= 0 || r.top >= bottomLimit) return setOpen(false); // 기준 버튼이 화면 밖(탭바 뒤 포함)으로 나가면 닫는다
+    setUp(below < MENU_H && above > below);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (!wrap.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [open, place]);
+
+  const toggle = () => {
+    if (!open) place();
+    setOpen(!open);
   };
-
-  const pastDue = task.dueDate !== null && daysBetween(today, task.dueDate) < 0;
+  const item = "flex min-h-[44px] w-full items-center gap-2.5 px-4 text-left text-sm hover:bg-surface-muted active:bg-surface-muted";
 
   return (
-    <div className="mt-3 flex flex-col gap-4 rounded-[14px] bg-[#f7f7f8] p-[13px]">
-      <div>
-        <label className={label} htmlFor={`title-${task.id}`}>
-          할 일
-        </label>
-        <input
-          id={`title-${task.id}`}
-          value={title}
-          maxLength={TITLE_MAX + 20}
-          onChange={(e) => setTitle(e.target.value)}
-          onBlur={saveTitle}
-          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-          aria-invalid={!!titleError}
-          className={fieldClass}
-        />
-        {titleError && <p className="mt-1 text-xs text-primary-dark">{titleError}</p>}
-      </div>
-
-      <div>
-        <span className={label}>중요도</span>
-        <div className="flex flex-wrap gap-2">
-          {(["low", "medium", "high"] as Importance[]).map((imp) => (
-            <OptionChip key={imp} selected={task.importance === imp} onClick={() => patchTask(task.id, { importance: imp })}>
-              {IMPORTANCE_LABEL[imp]}
-            </OptionChip>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <span className={label}>예상 소요시간</span>
-        <div className="flex flex-wrap gap-2">
-          {EFFORT_OPTIONS.map((o) => (
-            <OptionChip key={o.value} selected={task.effort === o.value} onClick={() => patchTask(task.id, { effort: o.value })}>
-              {o.label}
-            </OptionChip>
-          ))}
-          <OptionChip selected={task.effort === null} onClick={() => patchTask(task.id, { effort: null })}>
-            미정
-          </OptionChip>
-        </div>
-        <p className="mt-1.5 text-xs text-[#767780]">대략적인 규모만 골라 주세요. 정확한 시간은 필요 없어요.</p>
-      </div>
-
-      <div>
-        <span className={label}>
-          마감 <span className="font-normal">(선택)</span>
-        </span>
-        <button
-          type="button"
-          onClick={() => setSheet(true)}
-          aria-haspopup="dialog"
-          className={`${fieldClass} flex items-center justify-between gap-2 whitespace-nowrap text-left`}
+    <div ref={wrap} className="relative -m-2">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-label={`‘${title}’ 더보기`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="grid h-11 w-11 place-items-center text-[#9b9ca3] hover:text-ink"
+      >
+        <MoreIcon />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className={`absolute right-0 z-30 w-[164px] overflow-hidden rounded-xl border border-[#e8e8e9] bg-white py-1 shadow-[0_6px_20px_rgba(0,0,0,0.1)] ${up ? "bottom-full mb-1" : "top-full mt-1"}`}
         >
-          <span className={`min-w-0 truncate ${task.dueDate ? "" : "text-[#9b9ca3]"}`}>
-            {task.dueDate ? `${formatDotDate(task.dueDate)}${task.dueTime ? ` ${formatKoreanTime(task.dueTime)}` : ""}` : "마감일을 선택해 주세요"}
-          </span>
-          <span className="shrink-0 text-subtle">
-            <CalendarIcon />
-          </span>
-        </button>
-        {pastDue && <p className="mt-1 text-xs text-[#767780]">이미 지난 날짜예요</p>}
-      </div>
-
-      {projects.length > 0 && (
-        <div>
-          <label className={label} htmlFor={`project-${task.id}`}>
-            프로젝트 <span className="font-normal">(선택)</span>
-          </label>
-          <select
-            id={`project-${task.id}`}
-            value={task.projectId ?? ""}
-            onChange={(e) => patchTask(task.id, { projectId: e.target.value || null })}
-            className={fieldClass}
+          <button
+            type="button"
+            role="menuitem"
+            className={`${item} text-ink`}
+            onClick={() => {
+              setOpen(false);
+              onEdit();
+            }}
           >
-            <option value="">개별 할 일</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+            <EditFillIcon />
+            수정하기
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!canMove}
+            className={`${item} text-ink disabled:cursor-not-allowed disabled:text-[#b4b5ba] disabled:hover:bg-transparent`}
+            onClick={() => {
+              setOpen(false);
+              onMove();
+            }}
+          >
+            <MoveArrowFillIcon />
+            다른 날로 이동
+          </button>
+          <div role="separator" className="mx-3 my-0.5 h-px bg-[#eee]" />
+          <button
+            type="button"
+            role="menuitem"
+            className={`${item} text-primary-dark`}
+            onClick={() => {
+              setOpen(false);
+              onDelete();
+            }}
+          >
+            <TrashFillIcon />
+            삭제하기
+          </button>
         </div>
-      )}
-
-      {sheet && (
-        <DueSheet
-          dueDate={task.dueDate}
-          dueTime={task.dueTime}
-          today={today}
-          onClose={() => setSheet(false)}
-          onApply={(v) => {
-            patchTask(task.id, v);
-            setSheet(false);
-          }}
-        />
       )}
     </div>
   );
@@ -192,21 +188,25 @@ export default function TaskItem({
   projects,
   today,
   nowTime,
-  open,
-  onToggle,
   selectable,
 }: {
   task: Task;
   projects: Project[];
   today: string;
   nowTime: string;
-  open: boolean;
-  onToggle: () => void;
   /** 이월 선택 모드일 때 체크박스 자리에 선택 컨트롤을 둔다 */
   selectable?: { selected: boolean; onChange: (selected: boolean) => void };
 }) {
-  const handleDelete = () => {
-    if (window.confirm(`‘${task.title}’을(를) 삭제할까요?`)) deleteTask(task.id);
+  const [editing, setEditing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [moving, setMoving] = useState(false);
+  const deleted = useRef(false); // 중복 클릭으로 두 번 삭제되지 않게 한다
+  const closeEdit = useCallback(() => setEditing(false), []);
+  const closeMove = useCallback(() => setMoving(false), []);
+  const confirmDelete = () => {
+    if (deleted.current) return;
+    deleted.current = true;
+    deleteTask(task.id);
   };
   return (
     <li className="py-[15px]">
@@ -245,29 +245,43 @@ export default function TaskItem({
             {task.title}
           </p>
           <ConditionChips task={task} today={today} nowTime={nowTime} />
-          <button
-            type="button"
-            onClick={() => {
-              if (!open) track("Condition Settings Viewed");
-              onToggle();
-            }}
-            aria-expanded={open}
-            className="-mb-2 mt-0.5 inline-flex min-h-[40px] items-center gap-0.5 text-xs text-[#707277] underline underline-offset-2"
-          >
-            {open ? "조건 닫기" : "조건 설정"}
-            <ChevronIcon dir={open ? "up" : "down"} size={14} />
-          </button>
         </div>
-        <button
-          type="button"
-          onClick={handleDelete}
-          aria-label={`‘${task.title}’ 삭제`}
-          className="-m-2 p-3 text-[#9b9ca3] hover:text-ink"
-        >
-          <CloseIcon />
-        </button>
+        <TaskMenu
+          title={task.title}
+          canMove={!task.isCompleted}
+          onMove={() => setMoving(true)}
+          onEdit={() => {
+            track("Condition Settings Viewed");
+            setEditing(true);
+          }}
+          onDelete={() => setConfirming(true)}
+        />
       </div>
-      {open && <ConditionPanel task={task} projects={projects} today={today} />}
+      {editing && <TaskEditSheet task={task} projects={projects} today={today} onClose={closeEdit} />}
+      {moving && (
+        <MoveDateSheet
+          current={task.plannedDate}
+          today={today}
+          onClose={closeMove}
+          onMove={(date) => {
+            // 기존 일괄 이동 로직을 재사용한다(작업 날짜만 바뀌고 조건·완료 기한·시간은 그대로)
+            carryOverTasks([task.id], date);
+          }}
+        />
+      )}
+      {confirming && (
+        <Modal title="할 일을 삭제할까요?" onClose={() => setConfirming(false)}>
+          <p className="mt-2 text-[13px] leading-relaxed text-[#6f7176]">삭제한 할 일은 복구할 수 없어요.</p>
+          <div className="mt-5 flex gap-[9px]">
+            <GhostButton type="button" onClick={() => setConfirming(false)} className="min-h-[44px] flex-1 py-2.5">
+              취소
+            </GhostButton>
+            <PrimaryButton type="button" onClick={confirmDelete} className="min-h-[44px] flex-1 py-2.5">
+              삭제
+            </PrimaryButton>
+          </div>
+        </Modal>
+      )}
     </li>
   );
 }

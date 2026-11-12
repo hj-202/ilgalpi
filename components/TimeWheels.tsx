@@ -3,8 +3,7 @@
 import { useEffect, useRef } from "react";
 
 const ITEM_H = 40;
-const VIEW_H = 200; // 5줄. 가운데 줄이 선택값
-const PAD = (VIEW_H - ITEM_H) / 2;
+const VIEW_H = 200; // 기본 5줄. 가운데 줄이 선택값
 
 export const AMPM = [
   { value: 0, label: "오전" },
@@ -30,12 +29,16 @@ export function Wheel({
   items,
   value,
   onChange,
+  viewH = VIEW_H,
 }: {
   label: string;
   items: Array<{ value: number; label: string }>;
   value: number;
   onChange: (v: number) => void;
+  /** 휠 높이(px). 가운데 줄이 선택값이고 위아래로 (높이-40)/2만큼 보인다 */
+  viewH?: number;
 }) {
+  const PAD = (viewH - ITEM_H) / 2;
   const box = useRef<HTMLDivElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const index = Math.max(0, items.findIndex((i) => i.value === value));
@@ -53,7 +56,7 @@ export function Wheel({
   };
 
   return (
-    <div className="relative flex-1" style={{ height: VIEW_H }}>
+    <div className="relative flex-1" style={{ height: viewH }}>
       <div
         aria-hidden
         className="pointer-events-none absolute inset-x-0 rounded-xl bg-surface-muted"

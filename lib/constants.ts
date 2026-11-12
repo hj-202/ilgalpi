@@ -25,6 +25,15 @@ export const EFFORT_OPTIONS = [
   { value: "long", label: "2시간 초과" },
 ] as const;
 
+export type DueMode = "none" | "today" | "custom";
+
+/** 완료 기한 선택 칩 (등록·수정 화면 공용) */
+export const DUE_MODE_OPTIONS: ReadonlyArray<{ value: DueMode; label: string }> = [
+  { value: "none", label: "없음" },
+  { value: "today", label: "오늘까지" },
+  { value: "custom", label: "날짜 지정" },
+];
+
 export const EFFORT_LABEL = {
   short: "1시간 이내",
   medium: "1~2시간",

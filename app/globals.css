@@ -101,3 +101,47 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* 바텀시트 모션: 열 때만 아래에서 올라오고(내부 화면 전환 때는 시트를 유지), 닫을 때 아래로 내려간다.
+   움직임을 줄인 환경에서는 위의 전역 규칙(prefers-reduced-motion)이 지속시간을 거의 0으로 만든다 */
+.sheet-dim {
+  animation: sheet-dim-in 220ms ease-out both;
+}
+.sheet-dim[data-closing="true"] {
+  animation: sheet-dim-out 200ms ease-in both;
+}
+.sheet-panel {
+  animation: sheet-up 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.sheet-panel[data-closing="true"] {
+  animation: sheet-down 220ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+.sheet-view {
+  animation: sheet-view-in 180ms ease-out both;
+}
+@keyframes sheet-dim-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes sheet-dim-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes sheet-down {
+  to {
+    transform: translateY(100%);
+  }
+}
+@keyframes sheet-view-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}

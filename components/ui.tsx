@@ -26,17 +26,20 @@ export function Chip({
 /**
  * 조건 선택 칩(작업 가능 시간 칩과 같은 컴포넌트). 내용 너비, 좌우 14px, 선택 = 차콜 Fill.
  * 시각적 높이는 38px이고 투명 영역으로 터치 영역을 40px 이상 확보한다.
+ * size="condition": 할 일 조건 선택용(높이 36px, 좌우 12px, 13px). 이날 작업 가능한 시간 칩은 기본 크기를 쓴다.
  */
 export function OptionChip({
   selected,
   onClick,
   children,
   disabled,
+  size = "default",
 }: {
   selected: boolean;
   onClick: () => void;
   children: ReactNode;
   disabled?: boolean;
+  size?: "default" | "condition";
 }) {
   return (
     <button
@@ -44,7 +47,7 @@ export function OptionChip({
       aria-pressed={selected}
       disabled={disabled}
       onClick={onClick}
-      className={`relative min-h-[38px] whitespace-nowrap rounded-full border px-3.5 text-[12.5px] leading-none transition-colors after:absolute after:-inset-y-0.5 after:inset-x-0 after:content-[''] disabled:opacity-40 ${
+      className={`relative whitespace-nowrap rounded-full border leading-none transition-colors ${size === "condition" ? "h-9 px-3 text-[13px]" : "min-h-[38px] px-3.5 text-[12.5px]"} after:absolute after:-inset-y-0.5 after:inset-x-0 after:content-[''] disabled:opacity-40 ${
         selected
           ? "border-selected bg-selected font-semibold text-white"
           : "border-[#dedee1] bg-white text-[#505156] hover:bg-surface-muted"
@@ -168,11 +171,61 @@ export function CloseIcon({ size = 16 }: { size?: number }) {
   );
 }
 
+/** 바텀시트·모달 헤더의 닫기 버튼: 아이콘 24px, 터치 영역 44px. 아이콘 오른쪽 끝이 헤더 오른쪽 패딩 선에 오도록 음수 여백을 둔다 */
+export function HeaderCloseButton({ onClick, className = "-mr-2.5 grid h-11 w-11 place-items-center text-subtle" }: { onClick: () => void; className?: string }) {
+  return (
+    <button type="button" onClick={onClick} aria-label="닫기" className={className}>
+      <CloseIcon size={24} />
+    </button>
+  );
+}
+
 export function ChevronIcon({ dir, size = 20 }: { dir: "left" | "right" | "down" | "up"; size?: number }) {
   const d = { left: "M15 18 9 12l6-6", right: "M9 18l6-6-6-6", down: "M6 9l6 6 6-6", up: "M6 15l6-6 6 6" }[dir];
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d={d} />
+    </svg>
+  );
+}
+
+/** 더보기(···) 아이콘: 둥근 Fill 점 3개 */
+export function MoreIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <circle cx="5" cy="12" r="2.2" />
+      <circle cx="12" cy="12" r="2.2" />
+      <circle cx="19" cy="12" r="2.2" />
+    </svg>
+  );
+}
+
+/** 수정하기(연필) Rounded Fill 아이콘 */
+export function EditFillIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M14.9 4.6a2.4 2.4 0 0 1 3.4 0l1.1 1.1a2.4 2.4 0 0 1 0 3.4l-9.2 9.2a3 3 0 0 1-1.4.8l-3.6.9a1 1 0 0 1-1.2-1.2l.9-3.6a3 3 0 0 1 .8-1.4z" />
+      <rect x="4" y="19.2" width="16" height="2.4" rx="1.2" />
+    </svg>
+  );
+}
+
+/** 다른 날로 이동(단순 오른쪽 화살표) Rounded Fill 아이콘 */
+export function MoveArrowFillIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M5 9.5h7V6.2a1 1 0 0 1 1.7-.7l6 5.8a1 1 0 0 1 0 1.4l-6 5.8a1 1 0 0 1-1.7-.7V14.5H5a1.5 1.5 0 0 1-1.5-1.5v-2A1.5 1.5 0 0 1 5 9.5z" />
+    </svg>
+  );
+}
+
+/** 삭제하기(휴지통) Rounded Fill 아이콘 */
+export function TrashFillIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <rect x="9" y="2.8" width="6" height="3.4" rx="1.7" />
+      <rect x="3.5" y="5" width="17" height="2.8" rx="1.4" />
+      <path d="M5.6 9.4h12.8l-.8 9.9a3 3 0 0 1-3 2.7H9.4a3 3 0 0 1-3-2.7z" />
     </svg>
   );
 }
@@ -320,7 +373,7 @@ export function Modal({
           </h2>
           {dismissible && (
             <button type="button" onClick={onClose} aria-label="닫기" className="-m-2.5 p-2.5 text-[#888] hover:text-ink">
-              <CloseIcon size={18} />
+              <CloseIcon size={24} />
             </button>
           )}
         </div>
@@ -370,7 +423,7 @@ export function ToastHost() {
 export function ProgressBar({ done, total }: { done: number; total: number }) {
   const pct = total === 0 ? 0 : Math.round((done / total) * 100);
   return (
-    <div className="h-1.5 overflow-hidden rounded-full bg-[#f2f2f3]" role="progressbar" aria-label="완료율" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+    <div className="h-2.5 overflow-hidden rounded-full bg-[#f2f2f3]" role="progressbar" aria-label="완료율" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
       <div className="h-full rounded-full bg-primary transition-[width] duration-200" style={{ width: `${pct}%` }} />
     </div>
   );

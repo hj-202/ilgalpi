@@ -9,6 +9,9 @@ import QuickAdd from "./QuickAdd";
 import TaskItem from "./TaskItem";
 import { ChevronIcon, EmptyState, ProgressBar, ProgressCount } from "./ui";
 
+/** 목록 상단의 '할 일 옮기기' 진입점 노출 여부. 다중 선택·일괄 이동 로직은 보존하고 진입점만 숨긴다. */
+const SHOW_BULK_MOVE_ENTRY = false;
+
 export function focusQuickAdd() {
   requestAnimationFrame(() => {
     const el = document.getElementById("quick-add-input");
@@ -37,7 +40,6 @@ export default function DaySection({
   hasRecommendation: boolean;
   onShowRecommendation: () => void;
 }) {
-  const [openId, setOpenId] = useState<string | null>(null);
   const [carrying, setCarrying] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   // 날짜를 바꾸면 이월 선택 상태를 초기화한다
@@ -46,7 +48,6 @@ export default function DaySection({
     setPrevSelected(selected);
     setCarrying(false);
     setPicked(new Set());
-    setOpenId(null);
   }
   const dayTasks = tasks.filter((t) => t.plannedDate === selected);
   const done = dayTasks.filter((t) => t.isCompleted).length;
@@ -63,13 +64,13 @@ export default function DaySection({
     setPicked(new Set());
     setCarrying(false);
   };
-  const title = selected === today ? "오늘의 실행 기록" : `${formatMonthDay(selected)}의 할 일`;
+  const title = "진행 현황";
 
   return (
     <>
       <section aria-labelledby="day-title" className="mx-0.5 mb-[15px] mt-[19px]">
         <div className="flex items-center justify-between gap-2">
-          <h2 id="day-title" className="text-lg font-extrabold tracking-tight">
+          <h2 id="day-title" className="text-lg font-bold tracking-tight">
             {title}
           </h2>
           <span className="text-[13px] text-subtle">
@@ -92,7 +93,7 @@ export default function DaySection({
 
       <section aria-label="할 일 목록" className="mt-[23px]">
         <div className="flex min-h-[28px] items-center justify-between">
-          <span className="text-lg font-extrabold tracking-tight">할 일</span>
+          <span className="text-lg font-bold tracking-tight">오늘의 할 일</span>
           <span className="flex items-center gap-2 text-[13px] text-subtle">
             {hasRecommendation && (
               <button
@@ -108,11 +109,11 @@ export default function DaySection({
         </div>
 
         <div className="mb-1.5 mt-3">
-          <QuickAdd plannedDate={selected} />
+          <QuickAdd plannedDate={selected} today={today} />
         </div>
 
-        {incompleteIds.length > 0 && (
-          <div className="mt-2 flex items-center justify-between text-xs">
+        {(SHOW_BULK_MOVE_ENTRY || carrying) && incompleteIds.length > 0 && (
+          <div className={`mt-2 flex items-center text-xs ${carrying ? "justify-between" : "justify-end"}`}>
             <button
               type="button"
               onClick={() => {
@@ -169,8 +170,6 @@ export default function DaySection({
                 projects={projects}
                 today={today}
                 nowTime={nowTime}
-                open={openId === t.id}
-                onToggle={() => setOpenId(openId === t.id ? null : t.id)}
                 selectable={
                   carrying
                     ? {

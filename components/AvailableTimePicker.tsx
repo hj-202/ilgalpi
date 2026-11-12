@@ -53,7 +53,7 @@ export default function AvailableTimePicker({
   return (
     <div className="border-b border-line pb-[18px] pt-[22px]">
       <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-lg font-extrabold tracking-tight">이날 작업 가능한 시간</h2>
+        <h2 className="text-lg font-bold tracking-tight">이날 작업 가능한 시간</h2>
         <span className={readOnly ? "text-[13px] font-semibold text-[#222222]" : "text-[13px] text-subtle"}>{formatAvailable(value)}</span>
       </div>
       {!readOnly && (

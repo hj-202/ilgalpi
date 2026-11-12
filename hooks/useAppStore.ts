@@ -17,7 +17,7 @@ import {
   type LoadNotice,
 } from "@/lib/storage";
 import { getBrowserSupabase, supabaseConfigured } from "@/lib/supabase/client";
-import type { AppState, StoredRecommendation, Task } from "@/lib/types";
+import type { AppState, Effort, Importance, StoredRecommendation, Task } from "@/lib/types";
 
 export type AuthStatus = "checking" | "guest" | "account";
 export type SyncState = "idle" | "saving" | "saved" | "error";
@@ -453,6 +453,11 @@ export interface NewTaskInput {
   title: string;
   plannedDate: string;
   projectId?: string | null;
+  /** 생략하면 기본값(보통 / 미정 / 마감 없음) */
+  importance?: Importance;
+  effort?: Effort | null;
+  dueDate?: string | null;
+  dueTime?: string | null;
 }
 
 /** 기본 조건: 중요도 보통 / 시간 미정 / 마감 없음 */
@@ -463,10 +468,10 @@ export function addTask(input: NewTaskInput) {
     projectId: input.projectId ?? null,
     title: input.title.trim(),
     plannedDate: input.plannedDate,
-    dueDate: null,
-    dueTime: null,
-    importance: "medium",
-    effort: null,
+    dueDate: input.dueDate ?? null,
+    dueTime: input.dueDate ? (input.dueTime ?? null) : null,
+    importance: input.importance ?? "medium",
+    effort: input.effort ?? null,
     legacyMinutes: null,
     isCompleted: false,
     completedAt: null,

@@ -187,3 +187,9 @@ export function formatKoreanTime(hm: string): string {
   const [h, m] = hm.split(":").map(Number);
   return `${h >= 12 ? "오후" : "오전"} ${h % 12 === 0 ? 12 : h % 12}:${pad(m)}`;
 }
+
+/** 저장된 마감 값이 어떤 '완료 기한' 칩에 해당하는지. 오늘 날짜는 시간이 있어도 '오늘까지'(마감 시간은 따로 복원), 그 외 날짜는 '날짜 지정' */
+export function dueModeOf(dueDate: string | null, today: string): "none" | "today" | "custom" {
+  if (!dueDate) return "none";
+  return dueDate === today ? "today" : "custom";
+}

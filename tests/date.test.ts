@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addMonths, formatDotDate, formatKoreanTime, formatDueChip, minutesUntilDue, monthGrid, weekDays, weekStart } from "../lib/date";
+import { addMonths, dueModeOf, formatDotDate, formatKoreanTime, formatDueChip, minutesUntilDue, monthGrid, weekDays, weekStart } from "../lib/date";
 
 // 2026-10-20은 화요일
 const TODAY = "2026-10-20";
@@ -95,4 +95,10 @@ describe("일요일 시작 달력 (2026-10 ~ 2026-12, 연도 경계)", () => {
     expect(weekDays("2026-11-30")[0]).toBe("2026-11-29");
     expect(weekDays("2026-11-30")[6]).toBe("2026-12-05");
   });
+});
+
+describe("dueModeOf (완료 기한 칩 매핑)", () => {
+  it("기한 없음 → none", () => expect(dueModeOf(null, "2026-11-11")).toBe("none"));
+  it("오늘 → today (시간 유무와 무관)", () => expect(dueModeOf("2026-11-11", "2026-11-11")).toBe("today"));
+  it("다른 날짜 → custom", () => expect(dueModeOf("2026-11-20", "2026-11-11")).toBe("custom"));
 });
